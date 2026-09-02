@@ -31,10 +31,6 @@ export default function InstallmentList() {
   );
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    fetchRecords();
-  }, []);
-
   async function fetchRecords() {
     setLoading(true);
     setError("");
@@ -61,6 +57,10 @@ export default function InstallmentList() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    fetchRecords();
+  }, []);
 
   async function handleDeleteConfirm() {
     if (!deleteTarget?.id) return;
