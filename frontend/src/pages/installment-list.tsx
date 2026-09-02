@@ -31,33 +31,52 @@ export default function InstallmentList() {
   );
   const [deleting, setDeleting] = useState(false);
 
-  async function fetchRecords() {
-    try {
-      const data = await getInstallments();
-      setRecords(data);
-    } catch (err: unknown) {
-      let message = "خطا در دریافت لیست اقساط";
-      if (axios.isAxiosError(err)) {
-        const data = err.response?.data;
-        if (data?.message) {
-          message = data.message;
-          if (data.detail) message += ` (${data.detail})`;
-        } else if (err.response?.status === 401) {
-          message = "احراز هویت ناموفق. لطفاً دوباره وارد شوید.";
-        } else if (err.response?.statusText) {
-          message = `${err.response.status} - ${err.response.statusText}`;
-        }
-      } else if (err instanceof Error) {
-        message = err.message;
-      }
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    fetchRecords();
+    let cancelled = false;
+
+    async function loadRecords() {
+      try {
+        const data = await getInstallments();
+
+        if (!cancelled) {
+          setRecords(data);
+        }
+      } catch (err: unknown) {
+        if (cancelled) return;
+
+        let message = "خطا در دریافت لیست اقساط";
+
+        if (axios.isAxiosError(err)) {
+          const data = err.response?.data;
+
+          if (data?.message) {
+            message = data.message;
+
+            if (data.detail) {
+              message += ` (${data.detail})`;
+            }
+          } else if (err.response?.status === 401) {
+            message = "احراز هویت ناموفق. لطفاً دوباره وارد شوید.";
+          } else if (err.response?.statusText) {
+            message = `${err.response.status} - ${err.response.statusText}`;
+          }
+        } else if (err instanceof Error) {
+          message = err.message;
+        }
+
+        setError(message);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadRecords();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function handleDeleteConfirm() {
@@ -131,9 +150,7 @@ export default function InstallmentList() {
       {!loading && records.length === 0 && (
         <div className="flex min-h-[40vh] flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50/50">
           <Inbox className="mb-4 h-12 w-12 text-gray-300" />
-          <h3 className="text-base font-bold text-gray-900">
-            قسطی ثبت نشده
-          </h3>
+          <h3 className="text-base font-bold text-gray-900">قسطی ثبت نشده</h3>
           <p className="mt-1 text-sm text-gray-500">
             هنوز هیچ اقساطی ثبت نکرده‌اید. روی «ثبت جدید» کلیک کنید.
           </p>
@@ -166,8 +183,8 @@ export default function InstallmentList() {
                         </span>
                         <span className="flex items-center gap-1">
                           <CreditCard className="h-3.5 w-3.5" />
-                          {formatCurrency(record.data.installment_amount)}
-                          × {record.data.total_installments} قسط
+                          {formatCurrency(record.data.installment_amount)}×{" "}
+                          {record.data.total_installments} قسط
                         </span>
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3.5 w-3.5" />
