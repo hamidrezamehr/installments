@@ -49,7 +49,7 @@ const Layout = () => {
       {/* Main content area */}
       <div className="flex flex-1 flex-col min-h-0 min-w-0">
         {/* ── Desktop Header ── */}
-        <header className="sticky top-0 z-30 bg-white hidden h-16 shrink-0 items-center justify-between border-b border-black/10 px-6 lg:flex">
+        <header className="z-30 bg-white hidden h-16 shrink-0 items-center justify-between border-b border-black/10 px-6 lg:flex">
           {/* Right side: search */}
           <div className="relative w-80">
             <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -157,7 +157,7 @@ const Layout = () => {
 
         {/* ── Mobile Header ── */}
         <header
-          className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b border-black/10 px-4 lg:hidden"
+          className="z-30 flex h-14 shrink-0 items-center justify-between border-b border-black/10 px-4 lg:hidden"
           style={{
             background: "rgba(255, 255, 255, 0.55)",
             backdropFilter: "blur(16px) saturate(180%)",
