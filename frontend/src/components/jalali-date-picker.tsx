@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import { toJalaali, toGregorian, jalaaliMonthLength } from "jalaali-js";
 import CustomSelect from "./custom-select";
 import type { CustomSelectOption } from "./custom-select";
@@ -53,18 +53,31 @@ interface JalaliDatePickerProps {
   required?: boolean;
 }
 
+interface PartialDate {
+  day: number | "";
+  month: number | "";
+  year: number | "";
+}
+
+const EMPTY_PARTIAL: PartialDate = { day: "", month: "", year: "" };
+
 export default function JalaliDatePicker({
   value,
   onChange,
   required,
 }: JalaliDatePickerProps) {
-  // Derive Jalali values directly from value prop — no sync effect needed
+  // Derive Jalali from parent's value prop (Edit mode)
   const jalali = useMemo(() => toJalaliFromISO(value), [value]);
-  const jy = jalali?.jy ?? "";
-  const jm = jalali?.jm ?? "";
-  const jd = jalali?.jd ?? "";
 
-  // Emit a valid Gregorian date to parent
+  // Internal state for partial selections (Add mode when value is empty)
+  const [partial, setPartial] = useState<PartialDate>(EMPTY_PARTIAL);
+
+  // Display: prefer value prop (Edit), fall back to internal state (Add)
+  const jy = jalali?.jy ?? partial.year;
+  const jm = jalali?.jm ?? partial.month;
+  const jd = jalali?.jd ?? partial.day;
+
+  // Emit complete Gregorian date to parent
   const emit = useCallback(
     (newJy: number, newJm: number, newJd: number) => {
       const iso = toISOFromJalali(newJy, newJm, newJd);
@@ -82,6 +95,74 @@ export default function JalaliDatePicker({
     (_, i) => ({ value: String(i + 1), label: String(i + 1) }),
   );
 
+  function handleDayChange(v: string) {
+    const n = Number(v);
+    if (jalali) {
+      // Edit mode: emit directly
+      if (n >= 1 && n <= jalaaliMonthLength(jalali.jy, jalali.jm)) {
+        emit(jalali.jy, jalali.jm, n);
+      }
+    } else {
+      // Add mode: store partial, emit when complete
+      setPartial((prev) => {
+        const next = { ...prev, day: n };
+        if (next.year && next.month) {
+          const maxDay = jalaaliMonthLength(next.year, next.month);
+          const clampedDay = n > maxDay ? maxDay : n;
+          emit(next.year, next.month, clampedDay);
+          return { ...next, day: clampedDay };
+        }
+        return next;
+      });
+    }
+  }
+
+  function handleMonthChange(v: string) {
+    const n = Number(v);
+    if (jalali) {
+      // Edit mode: emit directly
+      if (n >= 1 && n <= 12) {
+        const maxDay = jalaaliMonthLength(jalali.jy, n);
+        const clampedDay = jd && jd > maxDay ? maxDay : (jd || 1);
+        emit(jalali.jy, n, clampedDay);
+      }
+    } else {
+      // Add mode: store partial, clamp day, emit when complete
+      setPartial((prev) => {
+        const maxDay = prev.year ? jalaaliMonthLength(prev.year, n) : 31;
+        let clampedDay: number | "" = prev.day;
+        if (prev.day && prev.day > maxDay) clampedDay = maxDay;
+        const next = { ...prev, month: n, day: clampedDay };
+        if (next.year && typeof clampedDay === "number") {
+          emit(next.year, n, clampedDay);
+        }
+        return next;
+      });
+    }
+  }
+
+  function handleYearChange(v: string) {
+    const n = Number(v);
+    if (jalali) {
+      // Edit mode: emit directly
+      const maxDay = jalaaliMonthLength(n, jalali.jm);
+      const clampedDay = jd && jd > maxDay ? maxDay : (jd || 1);
+      emit(n, jalali.jm, clampedDay);
+    } else {
+      // Add mode: store partial, clamp day, emit when complete
+      setPartial((prev) => {
+        const maxDay = prev.month ? jalaaliMonthLength(n, prev.month) : 31;
+        let clampedDay: number | "" = prev.day;
+        if (prev.day && prev.day > maxDay) clampedDay = maxDay;
+        const next = { ...prev, year: n, day: clampedDay };
+        if (next.month && typeof clampedDay === "number") {
+          emit(n, next.month, clampedDay);
+        }
+        return next;
+      });
+    }
+  }
+
   return (
     <div className="flex items-center gap-2">
       {/* Day */}
@@ -89,12 +170,7 @@ export default function JalaliDatePicker({
         value={jd === "" ? "" : String(jd)}
         options={dayOptions}
         placeholder="روز"
-        onChange={(v) => {
-          const n = Number(v);
-          if (jy && jm && n >= 1 && n <= jalaaliMonthLength(jy, jm)) {
-            emit(jy, jm, n);
-          }
-        }}
+        onChange={handleDayChange}
         required={required}
         className="w-18 shrink-0"
       />
@@ -104,13 +180,7 @@ export default function JalaliDatePicker({
         value={jm === "" ? "" : String(jm)}
         options={JALALI_MONTHS}
         placeholder="ماه"
-        onChange={(v) => {
-          const n = Number(v);
-          if (jy && jd && n >= 1 && n <= 12) {
-            const maxDay = jalaaliMonthLength(jy, n);
-            emit(jy, n, jd > maxDay ? maxDay : jd);
-          }
-        }}
+        onChange={handleMonthChange}
         required={required}
         className="min-w-0 flex-1"
       />
@@ -120,13 +190,7 @@ export default function JalaliDatePicker({
         value={jy === "" ? "" : String(jy)}
         options={YEAR_OPTIONS}
         placeholder="سال"
-        onChange={(v) => {
-          const n = Number(v);
-          if (jm && jd) {
-            const maxDay = jalaaliMonthLength(n, jm);
-            emit(n, jm, jd > maxDay ? maxDay : jd);
-          }
-        }}
+        onChange={handleYearChange}
         required={required}
         className="w-24 shrink-0"
       />
