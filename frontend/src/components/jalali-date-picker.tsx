@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo, useCallback } from "react";
 import { toJalaali, toGregorian, jalaaliMonthLength } from "jalaali-js";
 
 const JALALI_MONTHS = [
@@ -18,6 +18,27 @@ const JALALI_MONTHS = [
 
 const CURRENT_JALALI_YEAR = toJalaali(new Date()).jy;
 
+/** Convert a Gregorian YYYY-MM-DD string to Jalali {jy, jm, jd} or null */
+function toJalaliFromISO(iso: string): {
+  jy: number;
+  jm: number;
+  jd: number;
+} | null {
+  if (!iso) return null;
+  const d = new Date(iso + "T00:00:00");
+  if (isNaN(d.getTime())) return null;
+  return toJalaali(d);
+}
+
+/** Convert Jalali {jy, jm, jd} to Gregorian YYYY-MM-DD string */
+function toISOFromJalali(jy: number, jm: number, jd: number): string {
+  const g = toGregorian(jy, jm, jd);
+  const yyyy = String(g.gy).padStart(4, "0");
+  const mm = String(g.gm).padStart(2, "0");
+  const dd = String(g.gd).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 interface JalaliDatePickerProps {
   value: string; // Gregorian YYYY-MM-DD or ""
   onChange: (gregorianDate: string) => void;
@@ -29,93 +50,82 @@ export default function JalaliDatePicker({
   onChange,
   required,
 }: JalaliDatePickerProps) {
-  const [jy, setJy] = useState<number | "">("");
-  const [jm, setJm] = useState<number | "">("");
-  const [jd, setJd] = useState<number | "">("");
+  // Derive Jalali values directly from the value prop — no sync effect needed
+  const jalali = useMemo(() => toJalaliFromISO(value), [value]);
+  const jy = jalali?.jy ?? "";
+  const jm = jalali?.jm ?? "";
+  const jd = jalali?.jd ?? "";
 
-  // Initialize from Gregorian value prop
-  useEffect(() => {
-    if (value) {
-      const d = new Date(value + "T00:00:00");
-      if (!isNaN(d.getTime())) {
-        const j = toJalaali(d);
-        setJy(j.jy);
-        setJm(j.jm);
-        setJd(j.jd);
-        return;
+  // Emit a new Gregorian date to the parent when the user selects a valid date
+  const emit = useCallback(
+    (newJy: number, newJm: number, newJd: number) => {
+      const iso = toISOFromJalali(newJy, newJm, newJd);
+      if (iso !== value) {
+        onChange(iso);
       }
-    }
-    setJy("");
-    setJm("");
-    setJd("");
-  }, [value]);
+    },
+    [value, onChange],
+  );
 
-  function handleChange(
-    field: "y" | "m" | "d",
-    raw: string,
-  ) {
+  function handleYearChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const raw = e.target.value;
     if (raw === "") {
-      if (field === "y") setJy("");
-      else if (field === "m") setJm("");
-      else setJd("");
+      // Cannot clear year — treat as no-op
       return;
     }
+    const newJy = Number(raw);
+    if (isNaN(newJy)) return;
 
-    const num = Number(raw);
-    if (isNaN(num)) return;
+    if (jm && jd) {
+      const maxDay = jalaaliMonthLength(newJy, jm);
+      const clampedDay = jd > maxDay ? maxDay : jd;
+      emit(newJy, jm, clampedDay);
+    }
+    // If month or day is empty, emit just the year by keeping them —
+    // the parent value won't change until all three are set.
+  }
 
-    if (field === "y") {
-      setJy(num);
-    } else if (field === "m") {
-      if (num < 1 || num > 12) return;
-      setJm(num);
-      // Clamp day if new month has fewer days
-      if (jd) {
-        const max = jalaaliMonthLength(jy || CURRENT_JALALI_YEAR, num);
-        if (jd > max) setJd(max);
-      }
-    } else {
-      if (num < 1 || num > (jy && jm ? jalaaliMonthLength(jy, jm) : 31))
-        return;
-      setJd(num);
+  function handleMonthChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const raw = e.target.value;
+    if (raw === "") {
+      // Cannot clear month — treat as no-op
+      return;
+    }
+    const newJm = Number(raw);
+    if (isNaN(newJm) || newJm < 1 || newJm > 12) return;
+
+    if (jy && jd) {
+      const maxDay = jalaaliMonthLength(jy, newJm);
+      const clampedDay = jd > maxDay ? maxDay : jd;
+      emit(jy, newJm, clampedDay);
     }
   }
 
-  // When year or month changes, clamp the day
-  useEffect(() => {
-    if (jy && jm && jd) {
-      const max = jalaaliMonthLength(jy, jm);
-      if (jd > max) setJd(max);
+  function handleDayChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const raw = e.target.value;
+    if (raw === "") {
+      // Cannot clear day — treat as no-op
+      return;
     }
-  }, [jy, jm, jd]);
+    const newJd = Number(raw);
+    if (isNaN(newJd)) return;
 
-  // Emit Gregorian date when all three are selected
-  useEffect(() => {
-    if (jy && jm && jd) {
-      try {
-        const g = toGregorian(jy, jm, jd);
-        const yyyy = String(g.gy).padStart(4, "0");
-        const mm = String(g.gm).padStart(2, "0");
-        const dd = String(g.gd).padStart(2, "0");
-        const iso = `${yyyy}-${mm}-${dd}`;
-        if (iso !== value) {
-          onChange(iso);
-        }
-      } catch {
-        // invalid date, do not emit
-      }
+    if (jy && jm) {
+      const maxDay = jalaaliMonthLength(jy, jm);
+      if (newJd < 1 || newJd > maxDay) return;
+      emit(jy, jm, newJd);
     }
-  }, [jy, jm, jd]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
+
+  // Compute the max number of days for the current year/month
+  const maxDays = jy && jm ? jalaaliMonthLength(jy, jm) : 31;
+
+  const dayOptions = Array.from({ length: maxDays }, (_, i) => i + 1);
 
   const yearOptions = Array.from(
     { length: 30 },
     (_, i) => CURRENT_JALALI_YEAR - 29 + i,
   );
-
-  const dayOptions =
-    jy && jm
-      ? Array.from({ length: jalaaliMonthLength(jy, jm) }, (_, i) => i + 1)
-      : Array.from({ length: 31 }, (_, i) => i + 1);
 
   const selectClass =
     "rounded-lg border border-black/10 bg-white px-4 py-2.5 text-base font-medium text-gray-900 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20";
@@ -125,7 +135,7 @@ export default function JalaliDatePicker({
       {/* Day */}
       <select
         value={jd}
-        onChange={(e) => handleChange("d", e.target.value)}
+        onChange={handleDayChange}
         required={required}
         className={`${selectClass} w-18 shrink-0 text-center`}
       >
@@ -140,7 +150,7 @@ export default function JalaliDatePicker({
       {/* Month */}
       <select
         value={jm}
-        onChange={(e) => handleChange("m", e.target.value)}
+        onChange={handleMonthChange}
         required={required}
         className={`${selectClass} min-w-0 flex-1`}
       >
@@ -155,7 +165,7 @@ export default function JalaliDatePicker({
       {/* Year */}
       <select
         value={jy}
-        onChange={(e) => handleChange("y", e.target.value)}
+        onChange={handleYearChange}
         required={required}
         className={`${selectClass} w-24 shrink-0 text-center`}
       >
