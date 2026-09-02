@@ -442,7 +442,7 @@ export default function InstallmentDetail() {
 
       {/* Payment Schedule */}
       {schedule.length > 0 && (
-        <div className="mt-4 rounded-2xl border border-black/10 bg-white p-6 shadow-sm">
+        <div className="sticky top-0 z-10 mt-4 rounded-2xl border border-black/10 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center gap-2">
             <Calendar className="h-4.5 w-4.5 text-indigo-500" />
             <h2 className="text-sm font-bold text-gray-900">
@@ -484,8 +484,8 @@ export default function InstallmentDetail() {
             </div>
           </div>
 
-          {/* Schedule list */}
-          <div className="space-y-2">
+          {/* Schedule list — scrollable when many installments */}
+          <div className="max-h-[50vh] space-y-2 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-transparent">
             {schedule.map((item) => (
               <div
                 key={item.index}
