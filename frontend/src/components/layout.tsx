@@ -185,8 +185,8 @@ const Layout = () => {
         </header>
 
         {/* ── Page Content ── */}
-        <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-2 sm:p-3 lg:p-4">
-          <div className="rounded-xl border border-black/10 bg-white/30 shadow-sm backdrop-blur-sm min-h-full p-4 sm:p-5 lg:p-6">
+        <main className="flex-1 overflow-y-auto min-h-0 p-2 sm:p-3 lg:p-4">
+          <div className="rounded-xl max-h-[50vh] space-y-2 overflow-y-auto border border-black/10 bg-white/30 shadow-sm backdrop-blur-sm min-h-full p-4 sm:p-5 lg:p-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-transparent">
             <Outlet />
           </div>
         </main>
