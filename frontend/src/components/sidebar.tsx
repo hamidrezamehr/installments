@@ -9,6 +9,7 @@ import {
   Zap,
   X,
   CreditCard,
+  ListChecks,
 } from "lucide-react";
 import { useAuth } from "../context/use-auth";
 
@@ -25,6 +26,7 @@ const navSections = [
     label: "اقساط",
     items: [
       { to: "/installments", icon: CreditCard, label: "ثبت اقساط" },
+      { to: "/installments/list", icon: ListChecks, label: "لیست اقساط" },
     ],
   },
   {

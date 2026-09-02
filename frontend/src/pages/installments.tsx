@@ -32,6 +32,8 @@ export default function Installments() {
     }
   };
 
+  // Allow navigation to list from here
+
   return (
     <div dir="rtl" className="mx-auto max-w-4xl">
       <div className="mb-8">
@@ -82,6 +84,15 @@ export default function Installments() {
             </button>
           );
         })}
+      </div>
+
+      <div className="mt-6">
+        <button
+          onClick={() => navigate("/installments/list")}
+          className="w-full rounded-xl border border-black/10 bg-white p-4 text-center text-sm font-semibold text-indigo-600 transition-all hover:bg-indigo-50 hover:border-indigo-200"
+        >
+          مشاهده لیست اقساط ثبت‌شده
+        </button>
       </div>
 
       <div className="mt-8 rounded-xl border border-amber-200/60 bg-amber-50/50 p-4">

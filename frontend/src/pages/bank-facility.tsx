@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, type FormEvent } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowRight,
   Plus,
@@ -19,7 +19,12 @@ import {
   type PaymentMethodType,
   PAYMENT_METHOD_LABELS,
 } from "../types/installment";
-import { createBankFacility } from "../api/installments";
+import {
+  createBankFacility,
+  getInstallment,
+  updateBankFacility,
+} from "../api/installments";
+import ConfirmDialog from "../components/confirm-dialog";
 
 const IRANIAN_BANKS = [
   "بانک ملی ایران",
@@ -53,24 +58,45 @@ const PAYMENT_METHOD_OPTIONS: { type: PaymentMethodType; label: string }[] = [
   { type: "facility_number", label: "شماره تسهیلات" },
 ];
 
+const EMPTY_FORM: BankFacility = {
+  title: "",
+  bank_name: "",
+  total_installments: 12,
+  total_loan_amount: 0,
+  installment_amount: 0,
+  start_date: "",
+  end_date: "",
+  payment_methods: [
+    { type: "card_transfer", label: "کارت به کارت", value: "" },
+  ],
+  notes: "",
+};
+
 export default function BankFacilityForm() {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const isEdit = Boolean(id);
 
-  const [form, setForm] = useState<BankFacility>({
-    title: "",
-    bank_name: "",
-    total_installments: 12,
-    total_loan_amount: 0,
-    installment_amount: 0,
-    start_date: "",
-    end_date: "",
-    payment_methods: [{ type: "card_transfer", label: "کارت به کارت", value: "" }],
-    notes: "",
-  });
-
+  const [form, setForm] = useState<BankFacility>(EMPTY_FORM);
   const [loading, setLoading] = useState(false);
+  const [fetchingRecord, setFetchingRecord] = useState(isEdit);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+
+  // Confirmation dialog
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // Fetch existing record in edit mode
+  useEffect(() => {
+    if (!id) return;
+    setFetchingRecord(true);
+    getInstallment(Number(id))
+      .then((record) => {
+        setForm(record.data || EMPTY_FORM);
+      })
+      .catch(() => setError("خطا در بارگذاری اطلاعات"))
+      .finally(() => setFetchingRecord(false));
+  }, [id]);
 
   const updateField = <K extends keyof BankFacility>(
     key: K,
@@ -107,23 +133,42 @@ export default function BankFacilityForm() {
     updateField("payment_methods", updated);
   };
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+  // Called when user clicks submit button — opens confirm dialog
+  function handleFormSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setConfirmOpen(true);
+  }
+
+  // Called from confirm dialog
+  async function handleConfirmSave() {
     setError("");
     setLoading(true);
 
     try {
-      await createBankFacility(form);
+      if (isEdit && id) {
+        await updateBankFacility(Number(id), form);
+      } else {
+        await createBankFacility(form);
+      }
       setSuccess(true);
-      setTimeout(() => navigate("/installments"), 2000);
+      setTimeout(() => navigate("/installments/list"), 2000);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "خطا در ثبت اطلاعات";
       setError(message);
+      setConfirmOpen(false);
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  if (fetchingRecord) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
+      </div>
+    );
+  }
 
   if (success) {
     return (
@@ -132,7 +177,7 @@ export default function BankFacilityForm() {
           <CheckCircle2 className="h-8 w-8 text-emerald-600" />
         </div>
         <h2 className="mb-2 text-xl font-bold text-gray-900">
-          اطلاعات با موفقیت ثبت شد
+          اطلاعات با موفقیت {isEdit ? "ویرایش" : "ثبت"} شد
         </h2>
         <p className="text-sm text-gray-500">
           در حال انتقال به صفحه لیست اقساط...
@@ -145,22 +190,24 @@ export default function BankFacilityForm() {
     <div dir="rtl" className="mx-auto max-w-3xl">
       <div className="mb-6 flex items-center gap-3">
         <button
-          onClick={() => navigate("/installments")}
+          onClick={() => navigate("/installments/list")}
           className="flex h-9 w-9 items-center justify-center rounded-xl text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
         >
           <ArrowRight className="h-5 w-5" />
         </button>
         <div>
           <h1 className="text-xl font-bold tracking-tight text-gray-900">
-            تسهیلات بانکی
+            {isEdit ? "ویرایش تسهیلات بانکی" : "تسهیلات بانکی"}
           </h1>
           <p className="mt-0.5 text-xs text-gray-500">
-            اطلاعات تسهیلات دریافتی از بانک را وارد کنید
+            {isEdit
+              ? "اطلاعات تسهیلات را ویرایش کنید"
+              : "اطلاعات تسهیلات دریافتی از بانک را وارد کنید"}
           </p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleFormSubmit} className="space-y-6">
         {/* Loan Info */}
         <div className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm">
           <div className="mb-5 flex items-center gap-2">
@@ -420,20 +467,37 @@ export default function BankFacilityForm() {
             ) : (
               <>
                 <CheckCircle2 className="h-4 w-4" />
-                ثبت تسهیلات
+                {isEdit ? "ذخیره تغییرات" : "ثبت تسهیلات"}
               </>
             )}
           </button>
 
           <button
             type="button"
-            onClick={() => navigate("/installments")}
+            onClick={() => navigate("/installments/list")}
             className="rounded-xl border border-black/10 bg-white px-6 py-3 text-sm font-medium text-gray-600 transition-all hover:bg-gray-50"
           >
             انصراف
           </button>
         </div>
       </form>
+
+      {/* Save Confirmation Dialog */}
+      <ConfirmDialog
+        open={confirmOpen}
+        title={isEdit ? "ذخیره تغییرات" : "ثبت تسهیلات"}
+        description={
+          isEdit
+            ? "آیا از ذخیره تغییرات اطمینان دارید؟"
+            : "آیا از ثبت اطلاعات تسهیلات اطمینان دارید؟"
+        }
+        confirmLabel={isEdit ? "بله، ذخیره شود" : "بله، ثبت شود"}
+        cancelLabel="انصراف"
+        variant="primary"
+        loading={loading}
+        onConfirm={handleConfirmSave}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   );
 }
