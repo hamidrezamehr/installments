@@ -105,12 +105,6 @@ export default function InstallmentList() {
     }
   }
 
-  function handleEdit(record: InstallmentRecord) {
-    if (record.category === "bank_facility") {
-      navigate(`/installments/edit/${record.id}`);
-    }
-  }
-
   return (
     <div dir="rtl" className="mx-auto max-w-4xl">
       {/* Header */}
@@ -163,7 +157,8 @@ export default function InstallmentList() {
           {records.map((record) => (
             <div
               key={record.id}
-              className="group rounded-2xl border border-black/10 bg-white p-5 shadow-sm transition-all duration-200 hover:shadow-md hover:shadow-black/5"
+              onClick={() => navigate(`/installments/${record.id}`)}
+              className="group cursor-pointer rounded-2xl border border-black/10 bg-white p-5 shadow-sm transition-all duration-200 hover:shadow-md hover:shadow-black/5"
             >
               <div className="flex items-start justify-between gap-4">
                 {/* Info */}
@@ -203,14 +198,14 @@ export default function InstallmentList() {
                 {/* Actions */}
                 <div className="flex shrink-0 items-center gap-1.5">
                   <button
-                    onClick={() => handleEdit(record)}
+                    onClick={(e) => { e.stopPropagation(); navigate(`/installments/edit/${record.id}`); }}
                     className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition-all hover:bg-indigo-50 hover:text-indigo-500"
                     title="ویرایش"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
-                    onClick={() => setDeleteTarget(record)}
+                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(record); }}
                     className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition-all hover:bg-red-50 hover:text-red-500"
                     title="حذف"
                   >

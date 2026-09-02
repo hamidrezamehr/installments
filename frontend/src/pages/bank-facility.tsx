@@ -26,6 +26,28 @@ import {
   updateBankFacility,
 } from "../api/installments";
 import ConfirmDialog from "../components/confirm-dialog";
+import JalaliDatePicker from "../components/jalali-date-picker";
+
+/* ── Formatting helpers ────────────────────────────────────── */
+
+/** Format a number with comma separators for display */
+function formatWithCommas(n: number | ""): string {
+  if (n === "" || n === 0) return "";
+  return n.toLocaleString("en-US");
+}
+
+/** Format card number as XXXX-XXXX-XXXX-XXXX */
+function formatCardNumber(raw: string): string {
+  const digits = raw.replace(/[^0-9]/g, "").slice(0, 16);
+  return digits.replace(/(.{4})/g, "$1-").replace(/-$/, "");
+}
+
+/** Strip dashes and non-digits from card value */
+function cardDigits(raw: string): string {
+  return raw.replace(/[^0-9]/g, "").slice(0, 16);
+}
+
+/* ── Constants ─────────────────────────────────────────────── */
 
 const IRANIAN_BANKS = [
   "بانک ملی ایران",
@@ -73,6 +95,8 @@ const EMPTY_FORM: BankFacility = {
   notes: "",
 };
 
+/* ── Component ─────────────────────────────────────────────── */
+
 export default function BankFacilityForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -87,13 +111,20 @@ export default function BankFacilityForm() {
   // Confirmation dialog
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  // Display-only formatted values for currency inputs
+  const [loanDisplay, setLoanDisplay] = useState("");
+  const [installmentDisplay, setInstallmentDisplay] = useState("");
+
   // Fetch existing record in edit mode
   useEffect(() => {
     if (!id) return;
     setFetchingRecord(true);
     getInstallment(Number(id))
       .then((record) => {
-        setForm(record.data || EMPTY_FORM);
+        const d = record.data || EMPTY_FORM;
+        setForm(d);
+        setLoanDisplay(formatWithCommas(d.total_loan_amount));
+        setInstallmentDisplay(formatWithCommas(d.installment_amount));
       })
       .catch(() => setError("خطا در بارگذاری اطلاعات"))
       .finally(() => setFetchingRecord(false));
@@ -134,6 +165,71 @@ export default function BankFacilityForm() {
     updateField("payment_methods", updated);
   };
 
+  /* ── Formatted input handlers ─────────────────────────────── */
+
+  function handleLoanAmountChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    const digits = raw.replace(/[^0-9]/g, "");
+    if (digits === "") {
+      setLoanDisplay("");
+      updateField("total_loan_amount", 0);
+      return;
+    }
+    const num = Number(digits);
+    setLoanDisplay(formatWithCommas(num));
+    updateField("total_loan_amount", num);
+  }
+
+  function handleInstallmentAmountChange(
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const raw = e.target.value;
+    const digits = raw.replace(/[^0-9]/g, "");
+    if (digits === "") {
+      setInstallmentDisplay("");
+      updateField("installment_amount", 0);
+      return;
+    }
+    const num = Number(digits);
+    setInstallmentDisplay(formatWithCommas(num));
+    updateField("installment_amount", num);
+  }
+
+  function handleInstallmentCountChange(
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const raw = e.target.value;
+    if (raw === "") {
+      updateField("total_installments", 0);
+      return;
+    }
+    // Strip leading zeros and non-digits
+    const cleaned = raw.replace(/^0+/, "").replace(/[^0-9]/g, "");
+    if (cleaned === "") {
+      updateField("total_installments", 0);
+      return;
+    }
+    updateField("total_installments", Number(cleaned));
+  }
+
+  function handleCardNumberChange(
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const formatted = formatCardNumber(e.target.value);
+    const digits = cardDigits(formatted);
+    updatePaymentMethod(index, "value", digits);
+    // Update display
+    const input = e.target;
+    // We store digits in state but display formatted
+    // Use a ref-like approach via the input's own value
+    requestAnimationFrame(() => {
+      input.value = formatted;
+    });
+  }
+
+  /* ── Submit ───────────────────────────────────────────────── */
+
   // Called when user clicks submit button — opens confirm dialog
   function handleFormSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -161,7 +257,9 @@ export default function BankFacilityForm() {
           message = data.message;
           if (data.detail) message += ` (${data.detail})`;
         } else if (data?.errors) {
-          const validationErrors = Object.values(data.errors as Record<string, string[]>).flat();
+          const validationErrors = Object.values(
+            data.errors as Record<string, string[]>,
+          ).flat();
           message = validationErrors.join("\n");
         } else if (err.response?.statusText) {
           message = `${err.response.status} - ${err.response.statusText}`;
@@ -270,14 +368,12 @@ export default function BankFacilityForm() {
               <div className="relative">
                 <Banknote className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input
-                  type="number"
-                  value={form.total_loan_amount || ""}
-                  onChange={(e) =>
-                    updateField("total_loan_amount", Number(e.target.value))
-                  }
+                  type="text"
+                  inputMode="numeric"
+                  value={loanDisplay}
+                  onChange={handleLoanAmountChange}
                   required
-                  min={0}
-                  placeholder="مثال: 500000000"
+                  placeholder="مثال: 500,000,000"
                   className="w-full rounded-xl border border-black/10 bg-gray-50 py-2.5 pr-10 pl-4 text-sm text-gray-900 outline-none transition-all focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
                 />
               </div>
@@ -290,14 +386,12 @@ export default function BankFacilityForm() {
               <div className="relative">
                 <Hash className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input
-                  type="number"
-                  value={form.installment_amount || ""}
-                  onChange={(e) =>
-                    updateField("installment_amount", Number(e.target.value))
-                  }
+                  type="text"
+                  inputMode="numeric"
+                  value={installmentDisplay}
+                  onChange={handleInstallmentAmountChange}
                   required
-                  min={0}
-                  placeholder="مثال: 45000000"
+                  placeholder="مثال: 45,000,000"
                   className="w-full rounded-xl border border-black/10 bg-gray-50 py-2.5 pr-10 pl-4 text-sm text-gray-900 outline-none transition-all focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
                 />
               </div>
@@ -310,14 +404,14 @@ export default function BankFacilityForm() {
               <div className="relative">
                 <FileText className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input
-                  type="number"
-                  value={form.total_installments}
-                  onChange={(e) =>
-                    updateField("total_installments", Number(e.target.value))
-                  }
+                  type="text"
+                  inputMode="numeric"
+                  value={form.total_installments || ""}
+                  onChange={handleInstallmentCountChange}
                   required
                   min={1}
                   max={360}
+                  placeholder="12"
                   className="w-full rounded-xl border border-black/10 bg-gray-50 py-2.5 pr-10 pl-4 text-sm text-gray-900 outline-none transition-all focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
                 />
               </div>
@@ -341,12 +435,10 @@ export default function BankFacilityForm() {
               <label className="mb-1.5 block text-xs font-semibold text-gray-700">
                 تاریخ شروع تسهیلات *
               </label>
-              <input
-                type="date"
+              <JalaliDatePicker
                 value={form.start_date}
-                onChange={(e) => updateField("start_date", e.target.value)}
+                onChange={(g) => updateField("start_date", g)}
                 required
-                className="w-full rounded-xl border border-black/10 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 outline-none transition-all focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
               />
             </div>
 
@@ -354,12 +446,10 @@ export default function BankFacilityForm() {
               <label className="mb-1.5 block text-xs font-semibold text-gray-700">
                 تاریخ پایان تسهیلات *
               </label>
-              <input
-                type="date"
+              <JalaliDatePicker
                 value={form.end_date}
-                onChange={(e) => updateField("end_date", e.target.value)}
+                onChange={(g) => updateField("end_date", g)}
                 required
-                className="w-full rounded-xl border border-black/10 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 outline-none transition-all focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
               />
             </div>
           </div>
@@ -416,14 +506,22 @@ export default function BankFacilityForm() {
                     </label>
                     <input
                       type="text"
-                      value={method.value}
-                      onChange={(e) =>
-                        updatePaymentMethod(index, "value", e.target.value)
+                      defaultValue={
+                        method.type === "card_transfer"
+                          ? formatCardNumber(method.value)
+                          : method.value
+                      }
+                      key={`${index}-${method.type}`}
+                      onChange={
+                        method.type === "card_transfer"
+                          ? (e) => handleCardNumberChange(index, e)
+                          : (e) =>
+                              updatePaymentMethod(index, "value", e.target.value)
                       }
                       dir={method.type === "card_transfer" ? "ltr" : "rtl"}
                       placeholder={
                         method.type === "card_transfer"
-                          ? "0000-0000-0000-0000"
+                          ? "6037-9912-3456-7890"
                           : method.type === "account_number"
                             ? "شماره حساب"
                             : "شماره تسهیلات"
