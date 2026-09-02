@@ -27,6 +27,8 @@ import {
 } from "../api/installments";
 import ConfirmDialog from "../components/confirm-dialog";
 import JalaliDatePicker from "../components/jalali-date-picker";
+import CustomSelect from "../components/custom-select";
+import type { CustomSelectOption } from "../components/custom-select";
 
 /* ── Formatting helpers ────────────────────────────────────── */
 
@@ -81,6 +83,15 @@ const PAYMENT_METHOD_OPTIONS: { type: PaymentMethodType; label: string }[] = [
   { type: "facility_number", label: "شماره تسهیلات" },
 ];
 
+const BANK_OPTIONS: CustomSelectOption[] = IRANIAN_BANKS.map((bank) => ({
+  value: bank,
+  label: bank,
+}));
+
+const PAYMENT_TYPE_OPTIONS: CustomSelectOption[] = PAYMENT_METHOD_OPTIONS.map(
+  (opt) => ({ value: opt.type, label: opt.label }),
+);
+
 const EMPTY_FORM: BankFacility = {
   title: "",
   bank_name: "",
@@ -104,7 +115,7 @@ export default function BankFacilityForm() {
 
   const [form, setForm] = useState<BankFacility>(EMPTY_FORM);
   const [loading, setLoading] = useState(false);
-  const [fetchingRecord, setFetchingRecord] = useState(isEdit);
+  const [fetchingRecord, setFetchingRecord] = useState(() => isEdit);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
@@ -118,7 +129,6 @@ export default function BankFacilityForm() {
   // Fetch existing record in edit mode
   useEffect(() => {
     if (!id) return;
-    setFetchingRecord(true);
     getInstallment(Number(id))
       .then((record) => {
         const d = record.data || EMPTY_FORM;
@@ -346,19 +356,13 @@ export default function BankFacilityForm() {
               <label className="mb-1.5 block text-xs font-semibold text-gray-700">
                 نام بانک *
               </label>
-              <select
+              <CustomSelect
                 value={form.bank_name}
-                onChange={(e) => updateField("bank_name", e.target.value)}
+                options={BANK_OPTIONS}
+                placeholder="انتخاب کنید..."
+                onChange={(v) => updateField("bank_name", v)}
                 required
-                className="w-full rounded-xl border border-black/10 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 outline-none transition-all focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
-              >
-                <option value="">انتخاب کنید...</option>
-                {IRANIAN_BANKS.map((bank) => (
-                  <option key={bank} value={bank}>
-                    {bank}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             <div>
@@ -485,19 +489,14 @@ export default function BankFacilityForm() {
                     <label className="mb-1 block text-[11px] font-semibold text-gray-500">
                       نوع شیوه پرداخت
                     </label>
-                    <select
+                    <CustomSelect
                       value={method.type}
-                      onChange={(e) =>
-                        updatePaymentMethod(index, "type", e.target.value)
+                      options={PAYMENT_TYPE_OPTIONS}
+                      placeholder="انتخاب کنید..."
+                      onChange={(v) =>
+                        updatePaymentMethod(index, "type", v)
                       }
-                      className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
-                    >
-                      {PAYMENT_METHOD_OPTIONS.map((opt) => (
-                        <option key={opt.type} value={opt.type}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
 
                   <div className="flex-1">

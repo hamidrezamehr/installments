@@ -1,22 +1,51 @@
-import { useState, useEffect } from "react";
+import { useMemo, useCallback } from "react";
 import { toJalaali, toGregorian, jalaaliMonthLength } from "jalaali-js";
+import CustomSelect from "./custom-select";
+import type { CustomSelectOption } from "./custom-select";
 
-const JALALI_MONTHS = [
-  "فروردین",
-  "اردیبهشت",
-  "خرداد",
-  "تیر",
-  "مرداد",
-  "شهریور",
-  "مهر",
-  "آبان",
-  "آذر",
-  "دی",
-  "بهمن",
-  "اسفند",
+const JALALI_MONTHS: CustomSelectOption[] = [
+  { value: "1", label: "فروردین" },
+  { value: "2", label: "اردیبهشت" },
+  { value: "3", label: "خرداد" },
+  { value: "4", label: "تیر" },
+  { value: "5", label: "مرداد" },
+  { value: "6", label: "شهریور" },
+  { value: "7", label: "مهر" },
+  { value: "8", label: "آبان" },
+  { value: "9", label: "آذر" },
+  { value: "10", label: "دی" },
+  { value: "11", label: "بهمن" },
+  { value: "12", label: "اسفند" },
 ];
 
 const CURRENT_JALALI_YEAR = toJalaali(new Date()).jy;
+
+// Last 10 Jalali years including current year
+const YEAR_OPTIONS: CustomSelectOption[] = Array.from(
+  { length: 10 },
+  (_, i) => {
+    const y = CURRENT_JALALI_YEAR - i;
+    return { value: String(y), label: String(y) };
+  },
+);
+
+/** Convert Gregorian ISO to Jalali {jy, jm, jd} or null */
+function toJalaliFromISO(iso: string): {
+  jy: number;
+  jm: number;
+  jd: number;
+} | null {
+  if (!iso) return null;
+  const d = new Date(iso + "T00:00:00");
+  if (isNaN(d.getTime())) return null;
+  return toJalaali(d);
+}
+
+/** Convert Jalali to Gregorian YYYY-MM-DD */
+function toISOFromJalali(jy: number, jm: number, jd: number): string {
+  const g = toGregorian(jy, jm, jd);
+  return `${String(g.gy).padStart(4, "0")}-${String(g.gm).padStart(2, "0")}-${String(g.gd).padStart(2, "0")}`;
+}
 
 interface JalaliDatePickerProps {
   value: string; // Gregorian YYYY-MM-DD or ""
@@ -29,139 +58,78 @@ export default function JalaliDatePicker({
   onChange,
   required,
 }: JalaliDatePickerProps) {
-  const [jy, setJy] = useState<number | "">("");
-  const [jm, setJm] = useState<number | "">("");
-  const [jd, setJd] = useState<number | "">("");
+  // Derive Jalali values directly from value prop — no sync effect needed
+  const jalali = useMemo(() => toJalaliFromISO(value), [value]);
+  const jy = jalali?.jy ?? "";
+  const jm = jalali?.jm ?? "";
+  const jd = jalali?.jd ?? "";
 
-  // Initialize from Gregorian value prop
-  useEffect(() => {
-    if (value) {
-      const d = new Date(value + "T00:00:00");
-      if (!isNaN(d.getTime())) {
-        const j = toJalaali(d);
-        setJy(j.jy);
-        setJm(j.jm);
-        setJd(j.jd);
-        return;
+  // Emit a valid Gregorian date to parent
+  const emit = useCallback(
+    (newJy: number, newJm: number, newJd: number) => {
+      const iso = toISOFromJalali(newJy, newJm, newJd);
+      if (iso !== value) {
+        onChange(iso);
       }
-    }
-    setJy("");
-    setJm("");
-    setJd("");
-  }, [value]);
-
-  function handleChange(field: "y" | "m" | "d", raw: string) {
-    if (raw === "") {
-      if (field === "y") setJy("");
-      else if (field === "m") setJm("");
-      else setJd("");
-      return;
-    }
-
-    const num = Number(raw);
-    if (isNaN(num)) return;
-
-    if (field === "y") {
-      setJy(num);
-    } else if (field === "m") {
-      if (num < 1 || num > 12) return;
-      setJm(num);
-      // Clamp day if new month has fewer days
-      if (jd) {
-        const max = jalaaliMonthLength(jy || CURRENT_JALALI_YEAR, num);
-        if (jd > max) setJd(max);
-      }
-    } else {
-      if (num < 1 || num > (jy && jm ? jalaaliMonthLength(jy, jm) : 31)) return;
-      setJd(num);
-    }
-  }
-
-  // When year or month changes, clamp the day
-  useEffect(() => {
-    if (jy && jm && jd) {
-      const max = jalaaliMonthLength(jy, jm);
-      if (jd > max) setJd(max);
-    }
-  }, [jy, jm, jd]);
-
-  // Emit Gregorian date when all three are selected
-  useEffect(() => {
-    if (jy && jm && jd) {
-      try {
-        const g = toGregorian(jy, jm, jd);
-        const yyyy = String(g.gy).padStart(4, "0");
-        const mm = String(g.gm).padStart(2, "0");
-        const dd = String(g.gd).padStart(2, "0");
-        const iso = `${yyyy}-${mm}-${dd}`;
-        if (iso !== value) {
-          onChange(iso);
-        }
-      } catch {
-        // invalid date, do not emit
-      }
-    }
-  }, [jy, jm, jd]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const yearOptions = Array.from(
-    { length: 30 },
-    (_, i) => CURRENT_JALALI_YEAR - 29 + i,
+    },
+    [value, onChange],
   );
 
-  const dayOptions =
-    jy && jm
-      ? Array.from({ length: jalaaliMonthLength(jy, jm) }, (_, i) => i + 1)
-      : Array.from({ length: 31 }, (_, i) => i + 1);
+  const maxDays = jy && jm ? jalaaliMonthLength(jy, jm) : 31;
 
-  const selectClass =
-    "rounded-lg border border-black/10 bg-white px-3 py-1.5 text-base font-medium text-gray-900 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20";
+  const dayOptions: CustomSelectOption[] = Array.from(
+    { length: maxDays },
+    (_, i) => ({ value: String(i + 1), label: String(i + 1) }),
+  );
 
   return (
     <div className="flex items-center gap-2">
       {/* Day */}
-      <select
-        value={jd}
-        onChange={(e) => handleChange("d", e.target.value)}
+      <CustomSelect
+        value={jd === "" ? "" : String(jd)}
+        options={dayOptions}
+        placeholder="روز"
+        onChange={(v) => {
+          const n = Number(v);
+          if (jy && jm && n >= 1 && n <= jalaaliMonthLength(jy, jm)) {
+            emit(jy, jm, n);
+          }
+        }}
         required={required}
-        className={`${selectClass} w-18 shrink-0`}
-      >
-        <option value="">روز</option>
-        {dayOptions.map((d) => (
-          <option key={d} value={d}>
-            {d}
-          </option>
-        ))}
-      </select>
+        className="w-18 shrink-0"
+      />
 
       {/* Month */}
-      <select
-        value={jm}
-        onChange={(e) => handleChange("m", e.target.value)}
+      <CustomSelect
+        value={jm === "" ? "" : String(jm)}
+        options={JALALI_MONTHS}
+        placeholder="ماه"
+        onChange={(v) => {
+          const n = Number(v);
+          if (jy && jd && n >= 1 && n <= 12) {
+            const maxDay = jalaaliMonthLength(jy, n);
+            emit(jy, n, jd > maxDay ? maxDay : jd);
+          }
+        }}
         required={required}
-        className={`${selectClass} min-w-0 flex-1`}
-      >
-        <option value="">ماه</option>
-        {JALALI_MONTHS.map((name, i) => (
-          <option key={i + 1} value={i + 1}>
-            {name}
-          </option>
-        ))}
-      </select>
+        className="min-w-0 flex-1"
+      />
 
       {/* Year */}
-      <select
-        value={jy}
-        onChange={(e) => handleChange("y", e.target.value)}
+      <CustomSelect
+        value={jy === "" ? "" : String(jy)}
+        options={YEAR_OPTIONS}
+        placeholder="سال"
+        onChange={(v) => {
+          const n = Number(v);
+          if (jm && jd) {
+            const maxDay = jalaaliMonthLength(n, jm);
+            emit(n, jm, jd > maxDay ? maxDay : jd);
+          }
+        }}
         required={required}
-        className={`${selectClass} w-24 shrink-0 text-center`}
-      >
-        <option value="">سال</option>
-        {yearOptions.map((y) => (
-          <option key={y} value={y}>
-            {y}
-          </option>
-        ))}
-      </select>
+        className="w-24 shrink-0"
+      />
     </div>
   );
 }
