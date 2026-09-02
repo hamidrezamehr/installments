@@ -485,7 +485,7 @@ export default function BankFacilityForm() {
                 className="flex items-start gap-3 rounded-xl border border-black/5 bg-gray-50/50 p-4"
               >
                 <div className="flex flex-1 flex-col gap-3 sm:flex-row">
-                  <div className="sm:w-48">
+                  <div className="w-20 shrink-0">
                     <label className="mb-1 block text-[11px] font-semibold text-gray-500">
                       نوع شیوه پرداخت
                     </label>
@@ -517,7 +517,7 @@ export default function BankFacilityForm() {
                           : (e) =>
                               updatePaymentMethod(index, "value", e.target.value)
                       }
-                      dir={method.type === "card_transfer" ? "ltr" : "rtl"}
+                      dir="ltr"
                       placeholder={
                         method.type === "card_transfer"
                           ? "6037-9912-3456-7890"
