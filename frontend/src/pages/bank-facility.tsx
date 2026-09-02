@@ -525,7 +525,7 @@ export default function BankFacilityForm() {
                             ? "شماره حساب"
                             : "شماره تسهیلات"
                       }
-                      className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
+                      className="w-full rounded-lg border border-black/10 bg-white px-4 py-2.5 text-base font-medium text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
                     />
                   </div>
                 </div>

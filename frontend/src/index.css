@@ -4,11 +4,17 @@
 @source "../node_modules/flowbite";
 @import "flowbite/src/themes/default";
 
+@theme {
+  --font-sans: "Vazirmatn", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+
 html {
   height: 100%;
+  font-family: var(--font-sans);
 }
 
 body {
   height: 100%;
   margin: 0;
+  font-family: var(--font-sans);
 }
