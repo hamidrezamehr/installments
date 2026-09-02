@@ -20,11 +20,11 @@ const JALALI_MONTHS: CustomSelectOption[] = [
 
 const CURRENT_JALALI_YEAR = toJalaali(new Date()).jy;
 
-// Last 10 Jalali years including current year
+// 21 years: 10 before current + current + 10 after
 const YEAR_OPTIONS: CustomSelectOption[] = Array.from(
-  { length: 10 },
+  { length: 21 },
   (_, i) => {
-    const y = CURRENT_JALALI_YEAR - i;
+    const y = CURRENT_JALALI_YEAR - 10 + i;
     return { value: String(y), label: String(y) };
   },
 );
