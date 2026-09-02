@@ -517,7 +517,7 @@ export default function BankFacilityForm() {
                                 e.target.value,
                               )
                       }
-                      dir="ltr"
+                      dir={method.type === "card_transfer" ? "ltr" : undefined}
                       placeholder={
                         method.type === "card_transfer"
                           ? "6037-9912-3456-7890"
@@ -525,7 +525,7 @@ export default function BankFacilityForm() {
                             ? "شماره حساب"
                             : "شماره تسهیلات"
                       }
-                      className="w-full rounded-lg border border-black/10 bg-white px-4 py-2.5 text-base font-medium text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
+                      className={`w-full rounded-lg border border-black/10 bg-white px-4 py-2.5 text-base font-medium text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20${method.type !== "card_transfer" ? " num-ltr-value" : ""}`}
                     />
                   </div>
                 </div>
