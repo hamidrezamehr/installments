@@ -16,6 +16,7 @@ import {
   AlertCircle,
   StickyNote,
 } from "lucide-react";
+import { toJalaali } from "jalaali-js";
 import type { InstallmentRecord } from "../types/installment";
 import { getInstallment, deleteInstallment } from "../api/installments";
 import { PAYMENT_METHOD_LABELS } from "../types/installment";
@@ -25,13 +26,21 @@ function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("fa-IR").format(amount) + " ریال";
 }
 
-function formatDate(dateStr: string): string {
+function formatJalaliDate(dateStr: string): string {
   if (!dateStr) return "—";
   try {
-    return new Date(dateStr).toLocaleDateString("fa-IR");
+    const d = new Date(dateStr + (dateStr.includes("T") ? "" : "T00:00:00"));
+    if (isNaN(d.getTime())) return dateStr;
+    const j = toJalaali(d);
+    return `${j.jy}/${String(j.jm).padStart(2, "0")}/${String(j.jd).padStart(2, "0")}`;
   } catch {
     return dateStr;
   }
+}
+
+function formatCardNumber(raw: string): string {
+  const digits = raw.replace(/[^0-9]/g, "").slice(0, 16);
+  return digits.replace(/(.{4})/g, "$1-").replace(/-$/, "");
 }
 
 export default function InstallmentDetail() {
@@ -279,7 +288,7 @@ export default function InstallmentDetail() {
                   بازه زمانی
                 </p>
                 <p className="text-sm font-bold text-gray-900">
-                  {formatDate(data.start_date)} — {formatDate(data.end_date)}
+                  {formatJalaliDate(data.start_date)} — {formatJalaliDate(data.end_date)}
                 </p>
               </div>
             </div>
@@ -311,7 +320,9 @@ export default function InstallmentDetail() {
                           }
                           className="font-mono text-sm text-gray-700"
                         >
-                          {method.value}
+                          {method.type === "card_transfer" && method.value
+                            ? formatCardNumber(method.value)
+                            : method.value}
                         </span>
                       )}
                     </div>
@@ -343,13 +354,13 @@ export default function InstallmentDetail() {
         {record.created_at && (
           <span className="flex items-center gap-1">
             <Clock className="h-3 w-3" />
-            ایجاد: {formatDate(record.created_at)}
+            ایجاد: {formatJalaliDate(record.created_at)}
           </span>
         )}
         {record.updated_at && (
           <span className="flex items-center gap-1">
             <Clock className="h-3 w-3" />
-            بروزرسانی: {formatDate(record.updated_at)}
+            بروزرسانی: {formatJalaliDate(record.updated_at)}
           </span>
         )}
       </div>

@@ -11,12 +11,25 @@ import {
   Loader2,
   Inbox,
 } from "lucide-react";
+import { toJalaali } from "jalaali-js";
 import type { InstallmentRecord } from "../types/installment";
 import { getInstallments, deleteInstallment } from "../api/installments";
 import ConfirmDialog from "../components/confirm-dialog";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("fa-IR").format(amount) + " ریال";
+}
+
+function formatJalaliDate(dateStr: string): string {
+  if (!dateStr) return "—";
+  try {
+    const d = new Date(dateStr + (dateStr.includes("T") ? "" : "T00:00:00"));
+    if (isNaN(d.getTime())) return dateStr;
+    const j = toJalaali(d);
+    return `${j.jy}/${String(j.jm).padStart(2, "0")}/${String(j.jd).padStart(2, "0")}`;
+  } catch {
+    return dateStr;
+  }
 }
 
 export default function InstallmentList() {
@@ -183,7 +196,7 @@ export default function InstallmentList() {
                         </span>
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3.5 w-3.5" />
-                          {record.data.start_date} — {record.data.end_date}
+                          {formatJalaliDate(record.data.start_date)} — {formatJalaliDate(record.data.end_date)}
                         </span>
                       </div>
                     )}
