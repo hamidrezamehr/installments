@@ -50,10 +50,7 @@ export default function JalaliDatePicker({
     setJd("");
   }, [value]);
 
-  function handleChange(
-    field: "y" | "m" | "d",
-    raw: string,
-  ) {
+  function handleChange(field: "y" | "m" | "d", raw: string) {
     if (raw === "") {
       if (field === "y") setJy("");
       else if (field === "m") setJm("");
@@ -75,8 +72,7 @@ export default function JalaliDatePicker({
         if (jd > max) setJd(max);
       }
     } else {
-      if (num < 1 || num > (jy && jm ? jalaaliMonthLength(jy, jm) : 31))
-        return;
+      if (num < 1 || num > (jy && jm ? jalaaliMonthLength(jy, jm) : 31)) return;
       setJd(num);
     }
   }
@@ -118,7 +114,7 @@ export default function JalaliDatePicker({
       : Array.from({ length: 31 }, (_, i) => i + 1);
 
   const selectClass =
-    "rounded-lg border border-black/10 bg-white px-4 py-2.5 text-base font-medium text-gray-900 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20";
+    "rounded-lg border border-black/10 bg-white px-3 py-1.5 text-base font-medium text-gray-900 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20";
 
   return (
     <div className="flex items-center gap-2">
@@ -127,7 +123,7 @@ export default function JalaliDatePicker({
         value={jd}
         onChange={(e) => handleChange("d", e.target.value)}
         required={required}
-        className={`${selectClass} w-18 shrink-0 text-center`}
+        className={`${selectClass} w-18 shrink-0`}
       >
         <option value="">روز</option>
         {dayOptions.map((d) => (
