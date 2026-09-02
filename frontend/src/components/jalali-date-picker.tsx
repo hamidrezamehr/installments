@@ -123,7 +123,7 @@ export default function JalaliDatePicker({
       // Edit mode: emit directly
       if (n >= 1 && n <= 12) {
         const maxDay = jalaaliMonthLength(jalali.jy, n);
-        const clampedDay = jd && jd > maxDay ? maxDay : (jd || 1);
+        const clampedDay = jd && jd > maxDay ? maxDay : jd || 1;
         emit(jalali.jy, n, clampedDay);
       }
     } else {
@@ -146,7 +146,7 @@ export default function JalaliDatePicker({
     if (jalali) {
       // Edit mode: emit directly
       const maxDay = jalaaliMonthLength(n, jalali.jm);
-      const clampedDay = jd && jd > maxDay ? maxDay : (jd || 1);
+      const clampedDay = jd && jd > maxDay ? maxDay : jd || 1;
       emit(n, jalali.jm, clampedDay);
     } else {
       // Add mode: store partial, clamp day, emit when complete
@@ -172,7 +172,7 @@ export default function JalaliDatePicker({
         placeholder="روز"
         onChange={handleDayChange}
         required={required}
-        className="w-18 shrink-0"
+        className="w-20 shrink-0"
       />
 
       {/* Month */}

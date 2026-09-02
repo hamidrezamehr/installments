@@ -464,9 +464,7 @@ export default function BankFacilityForm() {
           <div className="mb-5 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <CreditCard className="h-4.5 w-4.5 text-indigo-500" />
-              <h2 className="text-sm font-bold text-gray-900">
-                شیوه پرداخت
-              </h2>
+              <h2 className="text-sm font-bold text-gray-900">شیوه پرداخت</h2>
             </div>
             <button
               type="button"
@@ -485,7 +483,7 @@ export default function BankFacilityForm() {
                 className="flex items-start gap-3 rounded-xl border border-black/5 bg-gray-50/50 p-4"
               >
                 <div className="flex flex-1 flex-col gap-3 sm:flex-row">
-                  <div className="w-20 shrink-0">
+                  <div className="w-48 shrink-0">
                     <label className="mb-1 block text-[11px] font-semibold text-gray-500">
                       نوع شیوه پرداخت
                     </label>
@@ -493,9 +491,7 @@ export default function BankFacilityForm() {
                       value={method.type}
                       options={PAYMENT_TYPE_OPTIONS}
                       placeholder="انتخاب کنید..."
-                      onChange={(v) =>
-                        updatePaymentMethod(index, "type", v)
-                      }
+                      onChange={(v) => updatePaymentMethod(index, "type", v)}
                     />
                   </div>
 
@@ -515,7 +511,11 @@ export default function BankFacilityForm() {
                         method.type === "card_transfer"
                           ? (e) => handleCardNumberChange(index, e)
                           : (e) =>
-                              updatePaymentMethod(index, "value", e.target.value)
+                              updatePaymentMethod(
+                                index,
+                                "value",
+                                e.target.value,
+                              )
                       }
                       dir="ltr"
                       placeholder={
