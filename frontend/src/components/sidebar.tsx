@@ -25,7 +25,7 @@ const navSections = [
   {
     label: "اقساط",
     items: [
-      { to: "/installments", icon: CreditCard, label: "ثبت اقساط" },
+      { to: "/installments", icon: CreditCard, label: "ثبت اقساط", end: true },
       { to: "/installments/list", icon: ListChecks, label: "لیست اقساط" },
     ],
   },

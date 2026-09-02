@@ -32,8 +32,6 @@ export default function Installments() {
     }
   };
 
-  // Allow navigation to list from here
-
   return (
     <div dir="rtl" className="mx-auto max-w-4xl">
       <div className="mb-8">

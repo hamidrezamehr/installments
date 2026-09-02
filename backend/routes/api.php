@@ -22,8 +22,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Installments
     Route::get('/installments', [InstallmentController::class, 'index']);
-    Route::get('/installments/{id}', [InstallmentController::class, 'show']);
     Route::post('/installments/bank-facility', [InstallmentController::class, 'storeBankFacility']);
+    Route::get('/installments/{id}', [InstallmentController::class, 'show']);
     Route::put('/installments/{id}', [InstallmentController::class, 'update']);
     Route::delete('/installments/{id}', [InstallmentController::class, 'destroy']);
 });
