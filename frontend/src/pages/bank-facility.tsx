@@ -1,5 +1,6 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import axios from "axios";
 import {
   ArrowRight,
   Plus,
@@ -153,8 +154,21 @@ export default function BankFacilityForm() {
       setSuccess(true);
       setTimeout(() => navigate("/installments/list"), 2000);
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "خطا در ثبت اطلاعات";
+      let message = "خطا در ثبت اطلاعات";
+      if (axios.isAxiosError(err)) {
+        const data = err.response?.data;
+        if (data?.message) {
+          message = data.message;
+          if (data.detail) message += ` (${data.detail})`;
+        } else if (data?.errors) {
+          const validationErrors = Object.values(data.errors as Record<string, string[]>).flat();
+          message = validationErrors.join("\n");
+        } else if (err.response?.statusText) {
+          message = `${err.response.status} - ${err.response.statusText}`;
+        }
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
       setError(message);
       setConfirmOpen(false);
     } finally {

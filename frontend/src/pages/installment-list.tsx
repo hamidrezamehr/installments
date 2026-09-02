@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import {
   Plus,
   Pencil,
@@ -40,8 +41,22 @@ export default function InstallmentList() {
     try {
       const data = await getInstallments();
       setRecords(data);
-    } catch {
-      setError("خطا در دریافت لیست اقساط");
+    } catch (err: unknown) {
+      let message = "خطا در دریافت لیست اقساط";
+      if (axios.isAxiosError(err)) {
+        const data = err.response?.data;
+        if (data?.message) {
+          message = data.message;
+          if (data.detail) message += ` (${data.detail})`;
+        } else if (err.response?.status === 401) {
+          message = "احراز هویت ناموفق. لطفاً دوباره وارد شوید.";
+        } else if (err.response?.statusText) {
+          message = `${err.response.status} - ${err.response.statusText}`;
+        }
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -54,8 +69,20 @@ export default function InstallmentList() {
       await deleteInstallment(deleteTarget.id);
       setRecords((prev) => prev.filter((r) => r.id !== deleteTarget.id));
       setDeleteTarget(null);
-    } catch {
-      setError("خطا در حذف قسط");
+    } catch (err: unknown) {
+      let message = "خطا در حذف قسط";
+      if (axios.isAxiosError(err)) {
+        const data = err.response?.data;
+        if (data?.message) {
+          message = data.message;
+          if (data.detail) message += ` (${data.detail})`;
+        } else if (err.response?.statusText) {
+          message = `${err.response.status} - ${err.response.statusText}`;
+        }
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
+      setError(message);
     } finally {
       setDeleting(false);
     }

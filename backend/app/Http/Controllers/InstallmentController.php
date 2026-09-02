@@ -3,22 +3,49 @@
 namespace App\Http\Controllers;
 
 use App\Models\Installment;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class InstallmentController extends Controller
 {
+    /**
+     * Check that the installments table exists.
+     */
+    private function ensureTableExists(): ?JsonResponse
+    {
+        if (! Schema::hasTable('installments')) {
+            return response()->json([
+                'message' => 'خطای سرور: جدول اقساط هنوز ایجاد نشده است. لطفاً مایگریشن‌ها را اجرا کنید.',
+            ], 500);
+        }
+
+        return null;
+    }
+
     /**
      * List all installments for the authenticated user.
      * GET /api/installments
      */
     public function index(Request $request): JsonResponse
     {
-        $installments = Installment::where('user_id', $request->user()->id)
-            ->orderByDesc('updated_at')
-            ->get();
+        if ($tableError = $this->ensureTableExists()) {
+            return $tableError;
+        }
 
-        return response()->json($installments);
+        try {
+            $installments = Installment::where('user_id', $request->user()->id)
+                ->orderByDesc('updated_at')
+                ->get();
+
+            return response()->json($installments);
+        } catch (QueryException $e) {
+            return response()->json([
+                'message' => 'خطا در دریافت لیست اقساط',
+                'detail' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
@@ -27,10 +54,21 @@ class InstallmentController extends Controller
      */
     public function show(Request $request, int $id): JsonResponse
     {
-        $installment = Installment::where('user_id', $request->user()->id)
-            ->findOrFail($id);
+        if ($tableError = $this->ensureTableExists()) {
+            return $tableError;
+        }
 
-        return response()->json($installment);
+        try {
+            $installment = Installment::where('user_id', $request->user()->id)
+                ->findOrFail($id);
+
+            return response()->json($installment);
+        } catch (QueryException $e) {
+            return response()->json([
+                'message' => 'خطا در دریافت اطلاعات قسط',
+                'detail' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
@@ -39,6 +77,10 @@ class InstallmentController extends Controller
      */
     public function storeBankFacility(Request $request): JsonResponse
     {
+        if ($tableError = $this->ensureTableExists()) {
+            return $tableError;
+        }
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'bank_name' => 'required|string|max:255',
@@ -54,24 +96,31 @@ class InstallmentController extends Controller
             'notes' => 'nullable|string|max:1000',
         ]);
 
-        $installment = Installment::create([
-            'user_id' => $request->user()->id,
-            'title' => $validated['title'],
-            'category' => 'bank_facility',
-            'data' => [
+        try {
+            $installment = Installment::create([
+                'user_id' => $request->user()->id,
                 'title' => $validated['title'],
-                'bank_name' => $validated['bank_name'],
-                'total_installments' => $validated['total_installments'],
-                'total_loan_amount' => $validated['total_loan_amount'],
-                'installment_amount' => $validated['installment_amount'],
-                'start_date' => $validated['start_date'],
-                'end_date' => $validated['end_date'],
-                'payment_methods' => $validated['payment_methods'],
-                'notes' => $validated['notes'] ?? null,
-            ],
-        ]);
+                'category' => 'bank_facility',
+                'data' => [
+                    'title' => $validated['title'],
+                    'bank_name' => $validated['bank_name'],
+                    'total_installments' => $validated['total_installments'],
+                    'total_loan_amount' => $validated['total_loan_amount'],
+                    'installment_amount' => $validated['installment_amount'],
+                    'start_date' => $validated['start_date'],
+                    'end_date' => $validated['end_date'],
+                    'payment_methods' => $validated['payment_methods'],
+                    'notes' => $validated['notes'] ?? null,
+                ],
+            ]);
 
-        return response()->json($installment, 201);
+            return response()->json($installment, 201);
+        } catch (QueryException $e) {
+            return response()->json([
+                'message' => 'خطا در ثبت اطلاعات تسهیلات',
+                'detail' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
@@ -80,6 +129,10 @@ class InstallmentController extends Controller
      */
     public function update(Request $request, int $id): JsonResponse
     {
+        if ($tableError = $this->ensureTableExists()) {
+            return $tableError;
+        }
+
         $installment = Installment::where('user_id', $request->user()->id)
             ->findOrFail($id);
 
@@ -98,22 +151,29 @@ class InstallmentController extends Controller
             'notes' => 'nullable|string|max:1000',
         ]);
 
-        $installment->update([
-            'title' => $validated['title'] ?? $installment->title,
-            'data' => [
-                'title' => $validated['title'] ?? $installment->data['title'],
-                'bank_name' => $validated['bank_name'] ?? $installment->data['bank_name'],
-                'total_installments' => $validated['total_installments'] ?? $installment->data['total_installments'],
-                'total_loan_amount' => $validated['total_loan_amount'] ?? $installment->data['total_loan_amount'],
-                'installment_amount' => $validated['installment_amount'] ?? $installment->data['installment_amount'],
-                'start_date' => $validated['start_date'] ?? $installment->data['start_date'],
-                'end_date' => $validated['end_date'] ?? $installment->data['end_date'],
-                'payment_methods' => $validated['payment_methods'] ?? $installment->data['payment_methods'],
-                'notes' => $validated['notes'] ?? $installment->data['notes'] ?? null,
-            ],
-        ]);
+        try {
+            $installment->update([
+                'title' => $validated['title'] ?? $installment->title,
+                'data' => [
+                    'title' => $validated['title'] ?? $installment->data['title'],
+                    'bank_name' => $validated['bank_name'] ?? $installment->data['bank_name'],
+                    'total_installments' => $validated['total_installments'] ?? $installment->data['total_installments'],
+                    'total_loan_amount' => $validated['total_loan_amount'] ?? $installment->data['total_loan_amount'],
+                    'installment_amount' => $validated['installment_amount'] ?? $installment->data['installment_amount'],
+                    'start_date' => $validated['start_date'] ?? $installment->data['start_date'],
+                    'end_date' => $validated['end_date'] ?? $installment->data['end_date'],
+                    'payment_methods' => $validated['payment_methods'] ?? $installment->data['payment_methods'],
+                    'notes' => $validated['notes'] ?? $installment->data['notes'] ?? null,
+                ],
+            ]);
 
-        return response()->json($installment);
+            return response()->json($installment);
+        } catch (QueryException $e) {
+            return response()->json([
+                'message' => 'خطا در بروزرسانی اطلاعات',
+                'detail' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
@@ -122,11 +182,22 @@ class InstallmentController extends Controller
      */
     public function destroy(Request $request, int $id): JsonResponse
     {
+        if ($tableError = $this->ensureTableExists()) {
+            return $tableError;
+        }
+
         $installment = Installment::where('user_id', $request->user()->id)
             ->findOrFail($id);
 
-        $installment->delete();
+        try {
+            $installment->delete();
 
-        return response()->json(['message' => 'Installment deleted successfully']);
+            return response()->json(['message' => 'Installment deleted successfully']);
+        } catch (QueryException $e) {
+            return response()->json([
+                'message' => 'خطا در حذف قسط',
+                'detail' => $e->getMessage(),
+            ], 500);
+        }
     }
 }
