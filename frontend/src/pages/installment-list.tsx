@@ -32,8 +32,6 @@ export default function InstallmentList() {
   const [deleting, setDeleting] = useState(false);
 
   async function fetchRecords() {
-    setLoading(true);
-    setError("");
     try {
       const data = await getInstallments();
       setRecords(data);
