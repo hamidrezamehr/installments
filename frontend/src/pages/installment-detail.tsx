@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import {
@@ -15,12 +15,15 @@ import {
   Loader2,
   AlertCircle,
   StickyNote,
+  CheckCircle2,
+  CircleDot,
+  Circle,
 } from "lucide-react";
-import { toJalaali } from "jalaali-js";
+import { toJalaali, toGregorian, jalaaliMonthLength } from "jalaali-js";
 import type { InstallmentRecord } from "../types/installment";
 import { getInstallment, deleteInstallment } from "../api/installments";
 import { PAYMENT_METHOD_LABELS } from "../types/installment";
-import ConfirmDialog from "../components/confirm-dialog";
+import ConfirmDialog from "../components/confirm-dialog"
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("fa-IR").format(amount) + " ریال";
@@ -43,6 +46,67 @@ function formatCardNumber(raw: string): string {
   return digits.replace(/(.{4})/g, "$1-").replace(/-$/, "");
 }
 
+/* ── Payment schedule helpers ──────────────────────────────── */
+
+interface ScheduleItem {
+  index: number;
+  dueDateJalali: string;   // "1405/01/15"
+  dueDateGregorian: string; // "2026-04-04"
+  due: boolean;            // due date has arrived
+  paid: boolean;           // actually paid (future: from DB)
+}
+
+/** Convert Gregorian YYYY-MM-DD to Jalali {jy,jm,jd} */
+function isoToJalali(iso: string): { jy: number; jm: number; jd: number } | null {
+  if (!iso) return null;
+  const d = new Date(iso + "T00:00:00");
+  if (isNaN(d.getTime())) return null;
+  return toJalaali(d);
+}
+
+/** Add N months to a Jalali date, clamping day to max valid day */
+function addJalaliMonths(
+  jy: number, jm: number, jd: number, months: number,
+): { jy: number; jm: number; jd: number } {
+  const totalMonths = (jy * 12 + (jm - 1)) + months;
+  const newJy = Math.floor(totalMonths / 12);
+  const newJm = (totalMonths % 12) + 1;
+  const maxDay = jalaaliMonthLength(newJy, newJm);
+  const newJd = jd > maxDay ? maxDay : jd;
+  return { jy: newJy, jm: newJm, jd: newJd };
+}
+
+/** Build payment schedule from installment data */
+function buildSchedule(
+  startDate: string,
+  totalInstallments: number,
+  paidIndices: Set<number>,
+): ScheduleItem[] {
+  const jalaliStart = isoToJalali(startDate);
+  if (!jalaliStart) return [];
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const schedule: ScheduleItem[] = [];
+  for (let i = 0; i < totalInstallments; i++) {
+    const due = addJalaliMonths(jalaliStart.jy, jalaliStart.jm, jalaliStart.jd, i);
+    const g = toGregorian(due.jy, due.jm, due.jd);
+    const dueIso = `${String(g.gy).padStart(4, "0")}-${String(g.gm).padStart(2, "0")}-${String(g.gd).padStart(2, "0")}`;
+    const dueDate = new Date(dueIso + "T00:00:00");
+    const isDue = today >= dueDate;
+
+    schedule.push({
+      index: i + 1,
+      dueDateJalali: `${due.jy}/${String(due.jm).padStart(2, "0")}/${String(due.jd).padStart(2, "0")}`,
+      dueDateGregorian: dueIso,
+      due: isDue,
+      paid: paidIndices.has(i),
+    });
+  }
+  return schedule;
+}
+
 export default function InstallmentDetail() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -54,6 +118,35 @@ export default function InstallmentDetail() {
   // Delete dialog state
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Payment schedule: local paid state (ready for future DB persistence)
+  const [paidIndices, setPaidIndices] = useState<Set<number>>(new Set());
+
+  // Build schedule from installment data
+  const data = record?.data;
+  const schedule = useMemo(
+    () => buildSchedule(data?.start_date ?? "", data?.total_installments ?? 0, paidIndices),
+    [data?.start_date, data?.total_installments, paidIndices],
+  );
+
+  // Summary counts
+  const totalCount = schedule.length;
+  const dueCount = schedule.filter((s) => s.due).length;
+  const paidCount = schedule.filter((s) => s.paid).length;
+  const remainingCount = totalCount - paidCount;
+
+  // Toggle paid status (placeholder: local only, will connect to API later)
+  const togglePaid = useCallback((index: number) => {
+    setPaidIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -163,8 +256,6 @@ export default function InstallmentDetail() {
   }
 
   if (!record) return null;
-
-  const data = record.data;
 
   return (
     <div dir="rtl" className="mx-auto max-w-3xl">
@@ -348,6 +439,111 @@ export default function InstallmentDetail() {
           </div>
         )}
       </div>
+
+      {/* Payment Schedule */}
+      {schedule.length > 0 && (
+        <div className="mt-4 rounded-2xl border border-black/10 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <Calendar className="h-4.5 w-4.5 text-indigo-500" />
+            <h2 className="text-sm font-bold text-gray-900">
+              برنامه پرداخت اقساط
+            </h2>
+          </div>
+
+          {/* Summary */}
+          <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl bg-gray-50 p-3 text-center">
+              <p className="text-[11px] font-semibold text-gray-500">تعداد کل</p>
+              <p className="mt-0.5 text-lg font-bold text-gray-900">
+                {totalCount}
+              </p>
+            </div>
+            <div className="rounded-xl bg-amber-50 p-3 text-center">
+              <p className="text-[11px] font-semibold text-amber-600">
+                سررسید شده
+              </p>
+              <p className="mt-0.5 text-lg font-bold text-amber-700">
+                {dueCount}
+              </p>
+            </div>
+            <div className="rounded-xl bg-emerald-50 p-3 text-center">
+              <p className="text-[11px] font-semibold text-emerald-600">
+                پرداخت شده
+              </p>
+              <p className="mt-0.5 text-lg font-bold text-emerald-700">
+                {paidCount}
+              </p>
+            </div>
+            <div className="rounded-xl bg-rose-50 p-3 text-center">
+              <p className="text-[11px] font-semibold text-rose-600">
+                باقی‌مانده
+              </p>
+              <p className="mt-0.5 text-lg font-bold text-rose-700">
+                {remainingCount}
+              </p>
+            </div>
+          </div>
+
+          {/* Schedule list */}
+          <div className="space-y-2">
+            {schedule.map((item) => (
+              <div
+                key={item.index}
+                className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-all ${
+                  item.paid
+                    ? "border-emerald-200/60 bg-emerald-50/50"
+                    : item.due
+                      ? "border-amber-200/60 bg-amber-50/30"
+                      : "border-black/5 bg-gray-50/50"
+                }`}
+              >
+                {/* Checkbox */}
+                <button
+                  type="button"
+                  onClick={() => togglePaid(item.index - 1)}
+                  className="shrink-0 focus:outline-none"
+                  aria-label={`قسط ${item.index}`}
+                >
+                  {item.paid ? (
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                  ) : item.due ? (
+                    <CircleDot className="h-5 w-5 text-amber-400" />
+                  ) : (
+                    <Circle className="h-5 w-5 text-gray-300" />
+                  )}
+                </button>
+
+                {/* Installment info */}
+                <div className="flex flex-1 items-center justify-between gap-2">
+                  <span className="text-sm font-bold text-gray-900">
+                    قسط {item.index}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">
+                      سررسید: {item.dueDateJalali}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        item.paid
+                          ? "bg-emerald-100 text-emerald-700"
+                          : item.due
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-gray-100 text-gray-500"
+                      }`}
+                    >
+                      {item.paid
+                        ? "پرداخت شده"
+                        : item.due
+                          ? "سررسید شده"
+                          : "آینده"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Timestamps */}
       <div className="mt-4 flex items-center justify-center gap-4 text-xs text-gray-400">
