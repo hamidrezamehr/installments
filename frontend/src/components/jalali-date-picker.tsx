@@ -118,7 +118,7 @@ export default function JalaliDatePicker({
       : Array.from({ length: 31 }, (_, i) => i + 1);
 
   const selectClass =
-    "rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20";
+    "rounded-lg border border-black/10 bg-white px-4 py-2.5 text-base font-medium text-gray-900 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20";
 
   return (
     <div className="flex items-center gap-2">
@@ -127,7 +127,7 @@ export default function JalaliDatePicker({
         value={jd}
         onChange={(e) => handleChange("d", e.target.value)}
         required={required}
-        className={selectClass}
+        className={`${selectClass} w-18 shrink-0 text-center`}
       >
         <option value="">روز</option>
         {dayOptions.map((d) => (
@@ -142,7 +142,7 @@ export default function JalaliDatePicker({
         value={jm}
         onChange={(e) => handleChange("m", e.target.value)}
         required={required}
-        className={selectClass}
+        className={`${selectClass} min-w-0 flex-1`}
       >
         <option value="">ماه</option>
         {JALALI_MONTHS.map((name, i) => (
@@ -157,7 +157,7 @@ export default function JalaliDatePicker({
         value={jy}
         onChange={(e) => handleChange("y", e.target.value)}
         required={required}
-        className={selectClass}
+        className={`${selectClass} w-24 shrink-0 text-center`}
       >
         <option value="">سال</option>
         {yearOptions.map((y) => (
