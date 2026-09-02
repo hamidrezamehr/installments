@@ -9,6 +9,7 @@ interface RegisterForm {
   email: string;
   password: string;
   password_confirmation: string;
+  terms: boolean;
 }
 
 interface RegisterResponse {
@@ -27,21 +28,23 @@ interface ValidationErrors {
 
 function Register() {
   const navigate = useNavigate();
-
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<RegisterForm>({
     name: "",
     email: "",
     password: "",
     password_confirmation: "",
+    terms: false,
   });
 
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -58,6 +61,7 @@ function Register() {
         email: "",
         password: "",
         password_confirmation: "",
+        terms: false,
       });
       setTimeout(() => navigate("/login"), 2000);
     } catch (error: unknown) {
@@ -282,10 +286,35 @@ function Register() {
                 />
               </div>
             </div>
+            {/* Terms */}
+            <div className="flex items-start gap-3">
+              <input
+                id="terms"
+                type="checkbox"
+                name="terms"
+                checked={form.terms}
+                onChange={handleChange}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-indigo-500 focus:ring-indigo-500/20"
+              />
+              <label
+                htmlFor="terms"
+                className="text-xs leading-relaxed text-gray-500"
+              >
+                من قوانین و شرایط استفاده از خدمات را مطالعه کرده و با آنها
+                موافقم. همچنین{" "}
+                <a
+                  href="#"
+                  className="font-medium text-indigo-500 hover:text-indigo-600 underline-offset-2 hover:underline"
+                >
+                  سیاست حفظ حریم خصوصی
+                </a>{" "}
+                را تایید می‌کنم.
+              </label>
+            </div>
 
             {/* Submit */}
             <button
-              disabled={loading}
+              disabled={loading || !form.terms}
               type="submit"
               className="relative flex w-full items-center justify-center gap-2 rounded-xl bg-linear-to-l from-indigo-500 to-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition-all duration-200 hover:from-indigo-600 hover:to-violet-700 hover:shadow-xl hover:shadow-indigo-500/30 hover:-translate-y-0.5 active:translate-y-0 active:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
             >

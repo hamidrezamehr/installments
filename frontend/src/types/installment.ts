@@ -44,7 +44,7 @@ export interface BankFacility {
 
 /** Generic installment record wrapper */
 export interface InstallmentRecord {
-  id?: number;
+  id: number;
   category: PaymentCategory;
   title: string;
   data: BankFacility;
