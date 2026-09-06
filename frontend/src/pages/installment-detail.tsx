@@ -27,6 +27,8 @@ import { getInstallment, deleteInstallment, storePayment, deletePayment } from "
 import { PAYMENT_METHOD_LABELS } from "../types/installment";
 import ConfirmDialog from "../components/confirm-dialog";
 import JalaliDatePicker from "../components/jalali-date-picker";
+import CustomSelect from "../components/custom-select";
+import type { CustomSelectOption } from "../components/custom-select";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("fa-IR").format(amount) + " ریال";
@@ -140,6 +142,7 @@ export default function InstallmentDetail() {
 
   // Payment form state
   const [paymentFormOpen, setPaymentFormOpen] = useState<number | null>(null); // installment_number or null
+  const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentDate, setPaymentDate] = useState("");
   const [paymentNote, setPaymentNote] = useState("");
   const [submittingPayment, setSubmittingPayment] = useState(false);
@@ -154,11 +157,13 @@ export default function InstallmentDetail() {
   // Build schedule from installment data + DB payment state
   const data = record?.data;
 
-  // Get the facility's primary payment method label
-  const facilityPaymentMethod = useMemo(() => {
-    if (!data?.payment_methods || data.payment_methods.length === 0) return null;
-    const first = data.payment_methods[0];
-    return PAYMENT_METHOD_LABELS[first.type] || first.type;
+  // Build payment method options from facility's payment_methods
+  const paymentMethodOptions: CustomSelectOption[] = useMemo(() => {
+    if (!data?.payment_methods) return [];
+    return data.payment_methods.map((m) => ({
+      value: PAYMENT_METHOD_LABELS[m.type] || m.type,
+      label: PAYMENT_METHOD_LABELS[m.type] || m.type,
+    }));
   }, [data?.payment_methods]);
 
   const schedule = useMemo(
@@ -172,12 +177,12 @@ export default function InstallmentDetail() {
   const paidCount = schedule.filter((s) => s.paid).length;
   const remainingCount = totalCount - paidCount;
 
-  // Store payment via API (payment method comes from facility)
+  // Store payment via API (payment method selected from facility's options)
   const handleStorePayment = useCallback(async (installmentNumber: number) => {
     if (!record?.id || submittingPayment) return;
 
-    if (!facilityPaymentMethod) {
-      setError("شیوه پرداخت تسهیلات یافت نشد");
+    if (!paymentMethod) {
+      setError("لطفاً شیوه پرداخت را انتخاب کنید");
       setTimeout(() => setError(""), 3000);
       return;
     }
@@ -194,7 +199,7 @@ export default function InstallmentDetail() {
       const result = await storePayment(
         record.id,
         installmentNumber,
-        facilityPaymentMethod,
+        paymentMethod,
         paymentDate,
         paymentNote,
       );
@@ -206,6 +211,7 @@ export default function InstallmentDetail() {
 
       // Close form and reset
       setPaymentFormOpen(null);
+      setPaymentMethod("");
       setPaymentDate("");
       setPaymentNote("");
     } catch (err: unknown) {
@@ -221,7 +227,7 @@ export default function InstallmentDetail() {
     } finally {
       setSubmittingPayment(false);
     }
-  }, [record?.id, facilityPaymentMethod, paymentDate, paymentNote, submittingPayment]);
+  }, [record?.id, paymentMethod, paymentDate, paymentNote, submittingPayment]);
 
   // Delete payment via API (unpay)
   const handleDeletePayment = useCallback(async (installmentNumber: number) => {
@@ -631,6 +637,8 @@ export default function InstallmentDetail() {
                       type="button"
                       onClick={() => {
                         setPaymentFormOpen(item.index);
+                        // Pre-select first payment method if only one exists
+                        setPaymentMethod(paymentMethodOptions.length === 1 ? paymentMethodOptions[0].value : "");
                         setPaymentDate(getTodayISO()); // Default to today
                         setPaymentNote("");
                       }}
@@ -717,23 +725,27 @@ export default function InstallmentDetail() {
                   </div>
                 )}
 
-                {/* Payment form for unpaid installments — NO payment method selector */}
+                {/* Payment form for unpaid installments — dropdown from facility's payment methods */}
                 {paymentFormOpen === item.index && (
                   <div className="ml-8 mr-4 mt-1 rounded-xl border border-amber-200/40 bg-amber-50/30 p-4 transition-all">
                     <h4 className="mb-3 text-xs font-bold text-gray-700">
                       ثبت پرداخت قسط {item.index}
                     </h4>
-
-                    {/* Show facility's payment method (read-only) */}
-                    {facilityPaymentMethod && (
-                      <div className="mb-3 flex items-center gap-2 rounded-lg bg-white/60 px-3 py-2">
-                        <CreditCard className="h-3.5 w-3.5 text-indigo-400" />
-                        <span className="text-[11px] font-semibold text-gray-500">نحوه پرداخت:</span>
-                        <span className="text-xs font-bold text-indigo-600">{facilityPaymentMethod}</span>
-                      </div>
-                    )}
-
                     <div className="space-y-3">
+                      {/* Payment Method — dropdown from facility's payment methods */}
+                      <div>
+                        <label className="mb-1 block text-[11px] font-semibold text-gray-500">
+                          شیوه پرداخت *
+                        </label>
+                        <CustomSelect
+                          value={paymentMethod}
+                          options={paymentMethodOptions}
+                          placeholder="انتخاب کنید..."
+                          onChange={setPaymentMethod}
+                          required
+                          className="w-full"
+                        />
+                      </div>
                       {/* Payment Date — defaults to today */}
                       <div>
                         <label className="mb-1 block text-[11px] font-semibold text-gray-500">
