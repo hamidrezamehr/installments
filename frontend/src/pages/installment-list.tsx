@@ -8,13 +8,13 @@ import {
   Landmark,
   CreditCard,
   Calendar,
-  Loader2,
   Inbox,
 } from "lucide-react";
 import { toJalaali } from "jalaali-js";
 import type { InstallmentRecord } from "../types/installment";
 import { getInstallments, deleteInstallment } from "../api/installments";
 import ConfirmDialog from "../components/confirm-dialog";
+import { ListSkeleton } from "../components/ui/skeleton";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("fa-IR").format(amount) + " ریال";
@@ -147,11 +147,7 @@ export default function InstallmentList() {
       )}
 
       {/* Loading */}
-      {loading && (
-        <div className="flex min-h-[40vh] items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
-        </div>
-      )}
+      {loading && <ListSkeleton count={3} />}
 
       {/* Empty */}
       {!loading && records.length === 0 && (

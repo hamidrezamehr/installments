@@ -1,6 +1,5 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import axios from "axios";
 import {
   ArrowRight,
   Plus,
@@ -20,34 +19,12 @@ import {
   type PaymentMethodType,
   PAYMENT_METHOD_LABELS,
 } from "../types/installment";
-import {
-  createBankFacility,
-  getInstallment,
-  updateBankFacility,
-} from "../api/installments";
+import * as installmentApi from "../services/installment-api";
+import { formatWithCommas, formatCardNumber, cardDigits } from "../lib/currency";
 import ConfirmDialog from "../components/confirm-dialog";
 import JalaliDatePicker from "../components/jalali-date-picker";
 import CustomSelect from "../components/custom-select";
 import type { CustomSelectOption } from "../components/custom-select";
-
-/* ── Formatting helpers ────────────────────────────────────── */
-
-/** Format a number with comma separators for display */
-function formatWithCommas(n: number | ""): string {
-  if (n === "" || n === 0) return "";
-  return n.toLocaleString("en-US");
-}
-
-/** Format card number as XXXX-XXXX-XXXX-XXXX */
-function formatCardNumber(raw: string): string {
-  const digits = raw.replace(/[^0-9]/g, "").slice(0, 16);
-  return digits.replace(/(.{4})/g, "$1-").replace(/-$/, "");
-}
-
-/** Strip dashes and non-digits from card value */
-function cardDigits(raw: string): string {
-  return raw.replace(/[^0-9]/g, "").slice(0, 16);
-}
 
 /* ── Constants ─────────────────────────────────────────────── */
 
@@ -119,17 +96,15 @@ export default function BankFacilityForm() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  // Confirmation dialog
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // Display-only formatted values for currency inputs
   const [loanDisplay, setLoanDisplay] = useState("");
   const [installmentDisplay, setInstallmentDisplay] = useState("");
 
-  // Fetch existing record in edit mode
   useEffect(() => {
     if (!id) return;
-    getInstallment(Number(id))
+    installmentApi
+      .getInstallment(Number(id))
       .then((record) => {
         const d = record.data || EMPTY_FORM;
         setForm(d);
@@ -175,8 +150,6 @@ export default function BankFacilityForm() {
     updateField("payment_methods", updated);
   };
 
-  /* ── Formatted input handlers ─────────────────────────────── */
-
   function handleLoanAmountChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value;
     const digits = raw.replace(/[^0-9]/g, "");
@@ -213,7 +186,6 @@ export default function BankFacilityForm() {
       updateField("total_installments", 0);
       return;
     }
-    // Strip leading zeros and non-digits
     const cleaned = raw.replace(/^0+/, "").replace(/[^0-9]/g, "");
     if (cleaned === "") {
       updateField("total_installments", 0);
@@ -229,50 +201,56 @@ export default function BankFacilityForm() {
     const formatted = formatCardNumber(e.target.value);
     const digits = cardDigits(formatted);
     updatePaymentMethod(index, "value", digits);
-    // Update display
     const input = e.target;
-    // We store digits in state but display formatted
-    // Use a ref-like approach via the input's own value
     requestAnimationFrame(() => {
       input.value = formatted;
     });
   }
 
-  /* ── Submit ───────────────────────────────────────────────── */
-
-  // Called when user clicks submit button — opens confirm dialog
   function handleFormSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setConfirmOpen(true);
   }
 
-  // Called from confirm dialog
   async function handleConfirmSave() {
     setError("");
     setLoading(true);
 
     try {
       if (isEdit && id) {
-        await updateBankFacility(Number(id), form);
+        await installmentApi.updateInstallment(Number(id), form);
       } else {
-        await createBankFacility(form);
+        await installmentApi.createInstallment(form);
       }
       setSuccess(true);
       setTimeout(() => navigate("/installments/list"), 2000);
     } catch (err: unknown) {
       let message = "خطا در ثبت اطلاعات";
-      if (axios.isAxiosError(err)) {
-        const data = err.response?.data;
+      if (
+        typeof err === "object" &&
+        err !== null &&
+        "isAxiosError" in err &&
+        typeof (err as { isAxiosError: Function }).isAxiosError === "function"
+      ) {
+        const axiosErr = err as {
+          response?: {
+            data?: {
+              message?: string;
+              detail?: string;
+              errors?: Record<string, string[]>;
+            };
+            statusText?: string;
+          };
+        };
+        const data = axiosErr.response?.data;
         if (data?.message) {
           message = data.message;
           if (data.detail) message += ` (${data.detail})`;
         } else if (data?.errors) {
-          const validationErrors = Object.values(
-            data.errors as Record<string, string[]>,
-          ).flat();
+          const validationErrors = Object.values(data.errors).flat();
           message = validationErrors.join("\n");
-        } else if (err.response?.statusText) {
-          message = `${err.response.status} - ${err.response.statusText}`;
+        } else if (axiosErr.response?.statusText) {
+          message = `${axiosErr.response.statusText}`;
         }
       } else if (err instanceof Error) {
         message = err.message;
@@ -334,7 +312,9 @@ export default function BankFacilityForm() {
         <div className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm">
           <div className="mb-5 flex items-center gap-2">
             <Building2 className="h-4.5 w-4.5 text-indigo-500" />
-            <h2 className="text-sm font-bold text-gray-900">اطلاعات تسهیلات</h2>
+            <h2 className="text-sm font-bold text-gray-900">
+              اطلاعات تسهیلات
+            </h2>
           </div>
 
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
@@ -464,7 +444,9 @@ export default function BankFacilityForm() {
           <div className="mb-5 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <CreditCard className="h-4.5 w-4.5 text-indigo-500" />
-              <h2 className="text-sm font-bold text-gray-900">شیوه پرداخت</h2>
+              <h2 className="text-sm font-bold text-gray-900">
+                شیوه پرداخت
+              </h2>
             </div>
             <button
               type="button"

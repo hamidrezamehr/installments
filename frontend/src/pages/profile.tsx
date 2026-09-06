@@ -1,5 +1,6 @@
 import { useAuth } from "../context/use-auth";
 import { LogOut, User, Mail } from "lucide-react";
+import { ProfileSkeleton } from "../components/ui/skeleton";
 
 function Profile() {
   const { user, loading, logout } = useAuth();
@@ -9,11 +10,7 @@ function Profile() {
   };
 
   if (loading) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
-      </div>
-    );
+    return <ProfileSkeleton />;
   }
 
   if (!user) {
