@@ -22,8 +22,16 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { toJalaali, toGregorian, jalaaliMonthLength } from "jalaali-js";
-import type { InstallmentRecord, InstallmentPayment } from "../types/installment";
-import { getInstallment, deleteInstallment, storePayment, deletePayment } from "../api/installments";
+import type {
+  InstallmentRecord,
+  InstallmentPayment,
+} from "../types/installment";
+import {
+  getInstallment,
+  deleteInstallment,
+  storePayment,
+  deletePayment,
+} from "../api/installments";
 import { PAYMENT_METHOD_LABELS } from "../types/installment";
 import ConfirmDialog from "../components/confirm-dialog";
 import JalaliDatePicker from "../components/jalali-date-picker";
@@ -61,15 +69,17 @@ function formatCardNumber(raw: string): string {
 
 interface ScheduleItem {
   index: number;
-  dueDateJalali: string;   // "1405/01/15"
+  dueDateJalali: string; // "1405/01/15"
   dueDateGregorian: string; // "2026-04-04"
-  due: boolean;            // due date has arrived
-  paid: boolean;           // actually paid (from DB)
+  due: boolean; // due date has arrived
+  paid: boolean; // actually paid (from DB)
   payment?: InstallmentPayment; // payment details if paid
 }
 
 /** Convert Gregorian YYYY-MM-DD to Jalali {jy,jm,jd} */
-function isoToJalali(iso: string): { jy: number; jm: number; jd: number } | null {
+function isoToJalali(
+  iso: string,
+): { jy: number; jm: number; jd: number } | null {
   if (!iso) return null;
   const d = new Date(iso + "T00:00:00");
   if (isNaN(d.getTime())) return null;
@@ -78,9 +88,12 @@ function isoToJalali(iso: string): { jy: number; jm: number; jd: number } | null
 
 /** Add N months to a Jalali date, clamping day to max valid day */
 function addJalaliMonths(
-  jy: number, jm: number, jd: number, months: number,
+  jy: number,
+  jm: number,
+  jd: number,
+  months: number,
 ): { jy: number; jm: number; jd: number } {
-  const totalMonths = (jy * 12 + (jm - 1)) + months;
+  const totalMonths = jy * 12 + (jm - 1) + months;
   const newJy = Math.floor(totalMonths / 12);
   const newJm = (totalMonths % 12) + 1;
   const maxDay = jalaaliMonthLength(newJy, newJm);
@@ -106,7 +119,12 @@ function buildSchedule(
 
   const schedule: ScheduleItem[] = [];
   for (let i = 0; i < totalInstallments; i++) {
-    const due = addJalaliMonths(jalaliStart.jy, jalaliStart.jm, jalaliStart.jd, i);
+    const due = addJalaliMonths(
+      jalaliStart.jy,
+      jalaliStart.jm,
+      jalaliStart.jd,
+      i,
+    );
     const g = toGregorian(due.jy, due.jm, due.jd);
     const dueIso = `${String(g.gy).padStart(4, "0")}-${String(g.gm).padStart(2, "0")}-${String(g.gd).padStart(2, "0")}`;
     const dueDate = new Date(dueIso + "T00:00:00");
@@ -148,7 +166,9 @@ export default function InstallmentDetail() {
   const [submittingPayment, setSubmittingPayment] = useState(false);
 
   // Accordion state: expanded installment number or null
-  const [expandedAccordion, setExpandedAccordion] = useState<number | null>(null);
+  const [expandedAccordion, setExpandedAccordion] = useState<number | null>(
+    null,
+  );
 
   // Unpay confirmation dialog
   const [unpayConfirmOpen, setUnpayConfirmOpen] = useState<number | null>(null);
@@ -167,7 +187,12 @@ export default function InstallmentDetail() {
   }, [data?.payment_methods]);
 
   const schedule = useMemo(
-    () => buildSchedule(data?.start_date ?? "", data?.total_installments ?? 0, payments),
+    () =>
+      buildSchedule(
+        data?.start_date ?? "",
+        data?.total_installments ?? 0,
+        payments,
+      ),
     [data?.start_date, data?.total_installments, payments],
   );
 
@@ -178,88 +203,96 @@ export default function InstallmentDetail() {
   const remainingCount = totalCount - paidCount;
 
   // Store payment via API (payment method selected from facility's options)
-  const handleStorePayment = useCallback(async (installmentNumber: number) => {
-    if (!record?.id || submittingPayment) return;
+  const handleStorePayment = useCallback(
+    async (installmentNumber: number) => {
+      if (!record?.id || submittingPayment) return;
 
-    if (!paymentMethod) {
-      setError("لطفاً شیوه پرداخت را انتخاب کنید");
-      setTimeout(() => setError(""), 3000);
-      return;
-    }
-
-    if (!paymentDate) {
-      setError("لطفاً تاریخ پرداخت را وارد کنید");
-      setTimeout(() => setError(""), 3000);
-      return;
-    }
-
-    setSubmittingPayment(true);
-
-    try {
-      const result = await storePayment(
-        record.id,
-        installmentNumber,
-        paymentMethod,
-        paymentDate,
-        paymentNote,
-      );
-
-      // Add the new payment to local state
-      if (result.payment) {
-        setPayments((prev) => [...prev, result.payment]);
+      if (!paymentMethod) {
+        setError("لطفاً شیوه پرداخت را انتخاب کنید");
+        setTimeout(() => setError(""), 3000);
+        return;
       }
 
-      // Close form and reset
-      setPaymentFormOpen(null);
-      setPaymentMethod("");
-      setPaymentDate("");
-      setPaymentNote("");
-    } catch (err: unknown) {
-      let message = "خطا در ثبت پرداخت";
-      if (axios.isAxiosError(err)) {
-        const respData = err.response?.data;
-        if (respData?.message) {
-          message = respData.message;
+      if (!paymentDate) {
+        setError("لطفاً تاریخ پرداخت را وارد کنید");
+        setTimeout(() => setError(""), 3000);
+        return;
+      }
+
+      setSubmittingPayment(true);
+
+      try {
+        const result = await storePayment(
+          record.id,
+          installmentNumber,
+          paymentMethod,
+          paymentDate,
+          paymentNote,
+        );
+
+        // Add the new payment to local state
+        if (result.payment) {
+          setPayments((prev) => [...prev, result.payment]);
         }
+
+        // Close form and reset
+        setPaymentFormOpen(null);
+        setPaymentMethod("");
+        setPaymentDate("");
+        setPaymentNote("");
+      } catch (err: unknown) {
+        let message = "خطا در ثبت پرداخت";
+        if (axios.isAxiosError(err)) {
+          const respData = err.response?.data;
+          if (respData?.message) {
+            message = respData.message;
+          }
+        }
+        setError(message);
+        setTimeout(() => setError(""), 3000);
+      } finally {
+        setSubmittingPayment(false);
       }
-      setError(message);
-      setTimeout(() => setError(""), 3000);
-    } finally {
-      setSubmittingPayment(false);
-    }
-  }, [record?.id, paymentMethod, paymentDate, paymentNote, submittingPayment]);
+    },
+    [record?.id, paymentMethod, paymentDate, paymentNote, submittingPayment],
+  );
 
   // Delete payment via API (unpay)
-  const handleDeletePayment = useCallback(async (installmentNumber: number) => {
-    if (!record?.id || unpaying !== null) return;
+  const handleDeletePayment = useCallback(
+    async (installmentNumber: number) => {
+      if (!record?.id || unpaying !== null) return;
 
-    setUnpaying(installmentNumber);
+      setUnpaying(installmentNumber);
 
-    try {
-      await deletePayment(record.id, installmentNumber);
+      try {
+        await deletePayment(record.id, installmentNumber);
 
-      // Remove payment from local state
-      setPayments((prev) => prev.filter((p) => p.installment_number !== installmentNumber));
+        // Remove payment from local state
+        setPayments((prev) =>
+          prev.filter((p) => p.installment_number !== installmentNumber),
+        );
 
-      // Close accordion if it was open
-      if (expandedAccordion === installmentNumber) {
-        setExpandedAccordion(null);
-      }
-    } catch (err: unknown) {
-      let message = "خطا در لغو پرداخت";
-      if (axios.isAxiosError(err)) {
-        const respData = err.response?.data;
-        if (respData?.message) {
-          message = respData.message;
+        // Close accordion if it was open
+        if (expandedAccordion === installmentNumber) {
+          setExpandedAccordion(null);
         }
+      } catch (err: unknown) {
+        let message = "خطا در لغو پرداخت";
+        if (axios.isAxiosError(err)) {
+          const respData = err.response?.data;
+          if (respData?.message) {
+            message = respData.message;
+          }
+        }
+        setError(message);
+        setTimeout(() => setError(""), 3000);
+      } finally {
+        setUnpaying(null);
+        setUnpayConfirmOpen(null);
       }
-      setError(message);
-      setTimeout(() => setError(""), 3000);
-    } finally {
-      setUnpaying(null);
-      setUnpayConfirmOpen(null);
-    }
-  }, [record?.id, expandedAccordion, unpaying]);
+    },
+    [record?.id, expandedAccordion, unpaying],
+  );
 
   // Load installment + payments from API
   useEffect(() => {
@@ -498,7 +531,8 @@ export default function InstallmentDetail() {
                   بازه زمانی
                 </p>
                 <p className="text-sm font-bold text-gray-900">
-                  {formatJalaliDate(data.start_date)} — {formatJalaliDate(data.end_date)}
+                  {formatJalaliDate(data.start_date)} —{" "}
+                  {formatJalaliDate(data.end_date)}
                 </p>
               </div>
             </div>
@@ -525,9 +559,7 @@ export default function InstallmentDetail() {
                       </div>
                       {method.value && (
                         <span
-                          dir={
-                            method.type === "card_transfer" ? "ltr" : "rtl"
-                          }
+                          dir={method.type === "card_transfer" ? "ltr" : "rtl"}
                           className="font-mono text-sm text-gray-700"
                         >
                           {method.type === "card_transfer" && method.value
@@ -572,7 +604,9 @@ export default function InstallmentDetail() {
           {/* Summary */}
           <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-xl bg-gray-50 p-3 text-center">
-              <p className="text-[11px] font-semibold text-gray-500">تعداد کل</p>
+              <p className="text-[11px] font-semibold text-gray-500">
+                تعداد کل
+              </p>
               <p className="mt-0.5 text-lg font-bold text-gray-900">
                 {totalCount}
               </p>
@@ -638,7 +672,11 @@ export default function InstallmentDetail() {
                       onClick={() => {
                         setPaymentFormOpen(item.index);
                         // Pre-select first payment method if only one exists
-                        setPaymentMethod(paymentMethodOptions.length === 1 ? paymentMethodOptions[0].value : "");
+                        setPaymentMethod(
+                          paymentMethodOptions.length === 1
+                            ? paymentMethodOptions[0].value
+                            : "",
+                        );
                         setPaymentDate(getTodayISO()); // Default to today
                         setPaymentNote("");
                       }}
@@ -682,7 +720,13 @@ export default function InstallmentDetail() {
                       {item.paid && item.payment && (
                         <button
                           type="button"
-                          onClick={() => setExpandedAccordion(expandedAccordion === item.index ? null : item.index)}
+                          onClick={() =>
+                            setExpandedAccordion(
+                              expandedAccordion === item.index
+                                ? null
+                                : item.index,
+                            )
+                          }
                           className="flex h-5 w-5 items-center justify-center text-gray-400 hover:text-gray-600"
                         >
                           {expandedAccordion === item.index ? (
@@ -697,37 +741,49 @@ export default function InstallmentDetail() {
                 </div>
 
                 {/* Accordion for paid installments */}
-                {item.paid && item.payment && expandedAccordion === item.index && (
-                  <div className="ml-8 mr-4 mt-1 rounded-xl border border-emerald-200/40 bg-emerald-50/30 p-4 transition-all">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-3.5 w-3.5 text-emerald-500" />
-                        <span className="text-xs font-semibold text-gray-500">تاریخ پرداخت:</span>
-                        <span className="text-xs font-bold text-gray-900">
-                          {item.payment.payment_date ? formatJalaliDate(item.payment.payment_date) : "—"}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <CreditCard className="h-3.5 w-3.5 text-emerald-500" />
-                        <span className="text-xs font-semibold text-gray-500">نحوه پرداخت:</span>
-                        <span className="text-xs font-bold text-gray-900">
-                          {item.payment.payment_method || "—"}
-                        </span>
-                      </div>
-                      {item.payment.note && (
-                        <div className="flex items-start gap-2">
-                          <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                          <span className="text-xs font-semibold text-gray-500">یادداشت:</span>
-                          <span className="text-xs text-gray-700">{item.payment.note}</span>
+                {item.paid &&
+                  item.payment &&
+                  expandedAccordion === item.index && (
+                    <div className="ml-8 w-full mt-1 rounded-xl border border-emerald-200/40 bg-emerald-50/30 p-4 transition-all">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-3.5 w-3.5 text-emerald-500" />
+                          <span className="text-xs font-semibold text-gray-500">
+                            تاریخ پرداخت:
+                          </span>
+                          <span className="text-xs font-bold text-gray-900">
+                            {item.payment.payment_date
+                              ? formatJalaliDate(item.payment.payment_date)
+                              : "—"}
+                          </span>
                         </div>
-                      )}
+                        <div className="flex items-center gap-2">
+                          <CreditCard className="h-3.5 w-3.5 text-emerald-500" />
+                          <span className="text-xs font-semibold text-gray-500">
+                            نحوه پرداخت:
+                          </span>
+                          <span className="text-xs font-bold text-gray-900">
+                            {item.payment.payment_method || "—"}
+                          </span>
+                        </div>
+                        {item.payment.note && (
+                          <div className="flex items-start gap-2">
+                            <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                            <span className="text-xs font-semibold text-gray-500">
+                              یادداشت:
+                            </span>
+                            <span className="text-xs text-gray-700">
+                              {item.payment.note}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Payment form for unpaid installments — dropdown from facility's payment methods */}
                 {paymentFormOpen === item.index && (
-                  <div className="ml-8 mr-4 mt-1 rounded-xl border border-amber-200/40 bg-amber-50/30 p-4 transition-all">
+                  <div className="mt-1 rounded-xl border border-amber-200/40 bg-amber-50/30 p-4 transition-all">
                     <h4 className="mb-3 text-xs font-bold text-gray-700">
                       ثبت پرداخت قسط {item.index}
                     </h4>
@@ -843,7 +899,9 @@ export default function InstallmentDetail() {
         cancelLabel="انصراف"
         variant="danger"
         loading={unpaying !== null}
-        onConfirm={() => unpayConfirmOpen !== null && handleDeletePayment(unpayConfirmOpen)}
+        onConfirm={() =>
+          unpayConfirmOpen !== null && handleDeletePayment(unpayConfirmOpen)
+        }
         onCancel={() => setUnpayConfirmOpen(null)}
       />
     </div>
