@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle } from "lucide-react";
 
 interface ConfirmDialogProps {
@@ -43,7 +44,7 @@ export default function ConfirmDialog({
       ? "bg-red-500 hover:bg-red-600 text-white shadow-red-500/25"
       : "bg-linear-to-l from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white shadow-indigo-500/25";
 
-  return (
+  return createPortal(
     <div
       ref={backdropRef}
       onClick={(e) => {
@@ -95,6 +96,7 @@ export default function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
