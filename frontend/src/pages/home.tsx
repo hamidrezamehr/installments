@@ -9,8 +9,10 @@ import {
   ArrowLeft,
   Clock,
   CheckCircle2,
-  AlertCircle,
+  AlertTriangle,
   Inbox,
+  TrendingUp,
+  ChevronLeft,
 } from "lucide-react";
 import { getInstallments } from "../api/installments";
 import type { InstallmentRecord } from "../types/installment";
@@ -18,6 +20,7 @@ import { formatCurrency } from "../lib/currency";
 import { formatJalaliDate } from "../lib/jalali";
 import { buildSchedule } from "../lib/schedule";
 import { useAuth } from "../context/use-auth";
+import { getTodayJalali } from "../lib/jalali";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -44,7 +47,10 @@ export default function Home() {
           const axiosErr = err as {
             response?: { data?: { message?: string }; statusText?: string };
           };
-          msg = axiosErr.response?.data?.message || axiosErr.response?.statusText || msg;
+          msg =
+            axiosErr.response?.data?.message ||
+            axiosErr.response?.statusText ||
+            msg;
         }
         setError(msg);
       } finally {
@@ -62,6 +68,8 @@ export default function Home() {
     let totalInstallments = 0;
     let totalPaid = 0;
     let totalOverdue = 0;
+    let totalAmount = 0;
+    let paidAmount = 0;
 
     for (const record of records) {
       if (!record.data) continue;
@@ -73,6 +81,9 @@ export default function Home() {
       totalInstallments += schedule.length;
       totalPaid += schedule.filter((s) => s.paid).length;
       totalOverdue += schedule.filter((s) => s.due && !s.paid).length;
+      totalAmount += record.data.total_loan_amount || 0;
+      paidAmount +=
+        (record.payments?.length || 0) * (record.data.installment_amount || 0);
     }
 
     return {
@@ -81,6 +92,8 @@ export default function Home() {
       paid: totalPaid,
       overdue: totalOverdue,
       remaining: totalInstallments - totalPaid,
+      totalAmount,
+      paidAmount,
     };
   }, [records]);
 
@@ -95,7 +108,21 @@ export default function Home() {
       .slice(0, 5);
   }, [records]);
 
+  // Overdue facilities (for alert)
+  const overdueFacilities = useMemo(() => {
+    return records.filter((record) => {
+      if (!record.data) return false;
+      const schedule = buildSchedule(
+        record.data.start_date,
+        record.data.total_installments,
+        record.payments || [],
+      );
+      return schedule.some((s) => s.due && !s.paid);
+    });
+  }, [records]);
+
   const userName = user?.name || "کاربر";
+  const todayJalali = getTodayJalali();
 
   if (loading) {
     return (
@@ -122,7 +149,10 @@ export default function Home() {
         {/* Recent skeleton */}
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-20 animate-pulse rounded-2xl bg-gray-200/40" />
+            <div
+              key={i}
+              className="h-20 animate-pulse rounded-2xl bg-gray-200/40"
+            />
           ))}
         </div>
       </div>
@@ -132,78 +162,141 @@ export default function Home() {
   return (
     <div dir="rtl" className="mx-auto max-w-4xl space-y-6">
       {/* ── Welcome Header ── */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-          سلام {userName} 👋
-        </h1>
-        <p className="mt-1.5 text-sm text-gray-500">
-          مدیریت اقساط و تسهیلات بانکی شما
-        </p>
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+            سلام {userName} 👋
+          </h1>
+          <p className="mt-1.5 flex items-center gap-1.5 text-sm text-gray-500">
+            <Calendar className="h-3.5 w-3.5" />
+            {todayJalali}
+          </p>
+        </div>
+        <button
+          onClick={() => navigate("/installments")}
+          className="flex items-center gap-1.5 rounded-xl bg-linear-to-l from-indigo-500 to-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-indigo-500/25 transition-all duration-200 hover:from-indigo-600 hover:to-violet-700 hover:-translate-y-0.5 active:translate-y-0 sm:text-sm sm:px-5 sm:py-2.5"
+        >
+          <Plus className="h-4 w-4" />
+          تسهیلات جدید
+        </button>
       </div>
 
       {/* ── Error ── */}
       {error && (
         <div className="flex items-center gap-3 rounded-xl border border-red-200/60 bg-red-50/70 px-4 py-3 text-sm font-medium text-red-600">
-          <AlertCircle className="h-4 w-4 shrink-0" />
+          <AlertTriangle className="h-4 w-4 shrink-0" />
           {error}
         </div>
       )}
 
+      {/* ── Overdue Alert ── */}
+      {stats.overdue > 0 && (
+        <button
+          onClick={() => {
+            // Navigate to the first overdue facility
+            if (overdueFacilities.length > 0) {
+              navigate(`/installments/${overdueFacilities[0].id}`);
+            }
+          }}
+          className="w-full rounded-2xl border border-amber-300/60 bg-linear-to-l from-amber-50 to-orange-50 p-4 text-right transition-all duration-200 hover:shadow-md hover:shadow-amber-100"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-amber-800">
+                {stats.overdue} قسط سررسید شده
+              </p>
+              <p className="mt-0.5 text-xs text-amber-600">
+                قسط‌های معوق خود را بررسی و پرداخت کنید
+              </p>
+            </div>
+            <ChevronLeft className="h-5 w-5 text-amber-400" />
+          </div>
+        </button>
+      )}
+
       {/* ── Stats ── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-xl bg-white p-4 text-center shadow-sm border border-black/5">
-          <div className="flex items-center justify-center gap-1.5">
-            <Landmark className="h-3.5 w-3.5 text-indigo-400" />
+        <div className="rounded-2xl border border-black/5 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50">
+              <Landmark className="h-4 w-4 text-indigo-500" />
+            </div>
             <p className="text-[11px] font-semibold text-gray-500">
               تسهیلات
             </p>
           </div>
-          <p className="mt-1.5 text-2xl font-bold text-gray-900">
+          <p className="mt-2 text-2xl font-bold text-gray-900">
             {stats.facilityCount}
           </p>
-        </div>
-        <div className="rounded-xl bg-white p-4 text-center shadow-sm border border-black/5">
-          <div className="flex items-center justify-center gap-1.5">
-            <CreditCard className="h-3.5 w-3.5 text-indigo-400" />
-            <p className="text-[11px] font-semibold text-gray-500">
-              کل اقساط
-            </p>
-          </div>
-          <p className="mt-1.5 text-2xl font-bold text-gray-900">
-            {stats.totalInstallments}
+          <p className="mt-0.5 text-[10px] text-gray-400">
+            {stats.totalInstallments > 0
+              ? `${stats.totalInstallments} قسط فعال`
+              : "بدون تسهیلات"}
           </p>
         </div>
-        <div className="rounded-xl bg-white p-4 text-center shadow-sm border border-black/5">
-          <div className="flex items-center justify-center gap-1.5">
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+
+        <div className="rounded-2xl border border-black/5 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            </div>
             <p className="text-[11px] font-semibold text-emerald-600">
               پرداخت شده
             </p>
           </div>
-          <p className="mt-1.5 text-2xl font-bold text-emerald-600">
+          <p className="mt-2 text-2xl font-bold text-emerald-600">
             {stats.paid}
           </p>
+          <p className="mt-0.5 text-[10px] text-gray-400">
+            از {stats.totalInstallments} قسط
+          </p>
         </div>
-        <div className="rounded-xl bg-white p-4 text-center shadow-sm border border-black/5">
-          <div className="flex items-center justify-center gap-1.5">
-            <AlertCircle className="h-3.5 w-3.5 text-amber-400" />
+
+        <div className="rounded-2xl border border-black/5 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50">
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+            </div>
             <p className="text-[11px] font-semibold text-amber-600">
               سررسید شده
             </p>
           </div>
-          <p className="mt-1.5 text-2xl font-bold text-amber-600">
+          <p className="mt-2 text-2xl font-bold text-amber-600">
             {stats.overdue}
+          </p>
+          <p className="mt-0.5 text-[10px] text-gray-400">
+            {stats.overdue > 0 ? "نیاز به پرداخت" : "همه به‌روز"}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-black/5 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50">
+              <TrendingUp className="h-4 w-4 text-violet-500" />
+            </div>
+            <p className="text-[11px] font-semibold text-violet-600">
+              باقی‌مانده
+            </p>
+          </div>
+          <p className="mt-2 text-2xl font-bold text-violet-600">
+            {stats.remaining}
+          </p>
+          <p className="mt-0.5 text-[10px] text-gray-400">
+            قسط پرداخت نشده
           </p>
         </div>
       </div>
 
       {/* ── Quick Actions ── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <button
           onClick={() => navigate("/installments")}
-          className="group relative overflow-hidden rounded-2xl border border-indigo-200/60 bg-linear-to-br from-indigo-500 to-violet-600 p-5 text-right text-white shadow-lg shadow-indigo-500/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/25"
+          className="group relative overflow-hidden rounded-2xl bg-linear-to-br from-indigo-500 to-violet-600 p-5 text-right text-white shadow-lg shadow-indigo-500/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/25"
         >
-          <div className="absolute -left-8 -bottom-8 h-24 w-24 rounded-full bg-white/10 blur-xl transition-transform duration-300 group-hover:scale-150" />
+          <div className="absolute -left-6 -bottom-6 h-20 w-20 rounded-full bg-white/10 blur-xl transition-transform duration-300 group-hover:scale-150" />
           <div className="relative flex items-center gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
               <Plus className="h-6 w-6" />
@@ -221,7 +314,6 @@ export default function Home() {
           onClick={() => navigate("/installments/list")}
           className="group relative overflow-hidden rounded-2xl border border-black/10 bg-white p-5 text-right shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-black/5"
         >
-          <div className="absolute -left-8 -bottom-8 h-24 w-24 rounded-full bg-indigo-100/50 blur-xl transition-transform duration-300 group-hover:scale-150" />
           <div className="relative flex items-center gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-50">
               <ListChecks className="h-6 w-6 text-indigo-500" />
@@ -253,7 +345,7 @@ export default function Home() {
               <ArrowLeft className="h-3.5 w-3.5 rotate-180" />
             </button>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {recentRecords.map((record) => {
               const schedule = buildSchedule(
                 record.data?.start_date || "",
@@ -262,6 +354,8 @@ export default function Home() {
               );
               const paid = schedule.filter((s) => s.paid).length;
               const total = schedule.length;
+              const overdue = schedule.filter((s) => s.due && !s.paid).length;
+              const progress = total > 0 ? (paid / total) * 100 : 0;
 
               return (
                 <button
@@ -274,10 +368,17 @@ export default function Home() {
                       <Landmark className="h-5 w-5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-[15px] font-bold text-gray-900">
-                        {record.title}
-                      </h3>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-[15px] font-bold text-gray-900">
+                          {record.title}
+                        </h3>
+                        {overdue > 0 && (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                            {overdue} معوق
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
                         <span className="flex items-center gap-1">
                           <Landmark className="h-3 w-3" />
                           {record.data?.bank_name}
@@ -297,7 +398,7 @@ export default function Home() {
                         )}
                       </div>
                     </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1">
+                    <div className="flex shrink-0 flex-col items-end gap-2">
                       {/* Progress bar */}
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-gray-700">
@@ -307,7 +408,7 @@ export default function Home() {
                           <div
                             className="h-full rounded-full bg-emerald-500 transition-all duration-500"
                             style={{
-                              width: total > 0 ? `${(paid / total) * 100}%` : "0%",
+                              width: `${progress}%`,
                             }}
                           />
                         </div>
@@ -329,20 +430,49 @@ export default function Home() {
 
       {/* ── Empty State ── */}
       {records.length === 0 && !error && (
-        <div className="flex flex-col items-center rounded-2xl border border-dashed border-gray-300 bg-gray-50/50 px-6 py-12 text-center">
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50">
-            <Inbox className="h-8 w-8 text-indigo-300" />
+        <div className="flex flex-col items-center rounded-2xl border border-dashed border-gray-300 bg-gray-50/50 px-6 py-16 text-center">
+          <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-indigo-50">
+            <Inbox className="h-10 w-10 text-indigo-300" />
           </div>
-          <h3 className="text-base font-bold text-gray-900">
-            هنوز تسهیلاتی ثبت نشده
+          <h3 className="text-lg font-bold text-gray-900">
+            اولین تسهیلات خود را ثبت کنید
           </h3>
-          <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-gray-500">
-            برای شروع مدیریت اقساط، اولین تسهیلات بانکی خود را ثبت کنید. با
-            ثبت تسهیلات می‌توانید وضعیت پرداخت هر قسط را پیگیری کنید.
+          <p className="mt-2 max-w-sm text-sm leading-relaxed text-gray-500">
+            با ثبت اطلاعات تسهیلات بانکی، می‌توانید وضعیت پرداخت هر قسط را
+            پیگیری کنید و هیچ سررسیدی را از دست ندهید.
           </p>
+
+          {/* Steps */}
+          <div className="mt-8 grid w-full max-w-sm grid-cols-1 gap-3">
+            <div className="flex items-center gap-3 rounded-xl bg-white p-3 text-right shadow-sm border border-black/5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-xs font-bold text-indigo-600">
+                ۱
+              </div>
+              <p className="text-xs font-medium text-gray-700">
+                اطلاعات تسهیلات را وارد کنید
+              </p>
+            </div>
+            <div className="flex items-center gap-3 rounded-xl bg-white p-3 text-right shadow-sm border border-black/5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-xs font-bold text-indigo-600">
+                ۲
+              </div>
+              <p className="text-xs font-medium text-gray-700">
+                برنامه اقساط به‌صورت خودکار ساخته می‌شود
+              </p>
+            </div>
+            <div className="flex items-center gap-3 rounded-xl bg-white p-3 text-right shadow-sm border border-black/5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-xs font-bold text-indigo-600">
+                ۳
+              </div>
+              <p className="text-xs font-medium text-gray-700">
+                پرداخت هر قسط را علامت‌گذاری کنید
+              </p>
+            </div>
+          </div>
+
           <button
             onClick={() => navigate("/installments")}
-            className="mt-6 flex items-center gap-2 rounded-xl bg-linear-to-l from-indigo-500 to-violet-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition-all duration-200 hover:from-indigo-600 hover:to-violet-700 hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0"
+            className="mt-8 flex items-center gap-2 rounded-xl bg-linear-to-l from-indigo-500 to-violet-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition-all duration-200 hover:from-indigo-600 hover:to-violet-700 hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0"
           >
             <Plus className="h-4 w-4" />
             ثبت اولین تسهیلات
@@ -351,12 +481,11 @@ export default function Home() {
       )}
 
       {/* ── Tips ── */}
-      {records.length > 0 && (
-        <div className="rounded-xl border border-amber-200/60 bg-amber-50/50 p-4">
-          <p className="text-xs leading-relaxed text-amber-700">
-            <strong>نکته:</strong> روی هر قسط در صفحه جزئیات کلیک کنید تا
-            وضعیت پرداخت آن را به‌روزرسانی کنید. قسط‌های سررسید شده با رنگ
-            مشخصی نمایش داده می‌شوند.
+      {records.length > 0 && stats.overdue === 0 && (
+        <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/50 p-4">
+          <p className="text-xs leading-relaxed text-emerald-700">
+            <strong>عالی!</strong> همه اقساط شما به‌روز است. روی هر تسهیلات
+            کلیک کنید تا وضعیت پرداخت آن را مشاهده و مدیریت کنید.
           </p>
         </div>
       )}

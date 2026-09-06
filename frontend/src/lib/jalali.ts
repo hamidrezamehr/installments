@@ -55,3 +55,14 @@ export function isOverdue(dueDateISO: string): boolean {
   const dueDate = new Date(dueDateISO + "T00:00:00");
   return today >= dueDate;
 }
+
+/** Get today's date as Jalali display string */
+export function getTodayJalali(): string {
+  const now = new Date();
+  const j = toJalaali(now);
+  const months = [
+    "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
+    "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند",
+  ];
+  return `${j.jd} ${months[j.jm - 1]} ${j.jy}`;
+}
