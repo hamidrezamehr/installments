@@ -20,6 +20,7 @@ import { formatCurrency, formatCardNumber } from "../lib/currency";
 import { formatJalaliDate } from "../lib/jalali";
 import { buildSchedule } from "../lib/schedule";
 import * as installmentApi from "../services/installment-api";
+import { useToast } from "../components/toast";
 import ConfirmDialog from "../components/confirm-dialog";
 import PaymentSchedule from "../components/features/installments/payment-schedule";
 import { InstallmentDetailSkeleton } from "../components/ui/skeleton";
@@ -27,8 +28,9 @@ import { InstallmentDetailSkeleton } from "../components/ui/skeleton";
 export default function InstallmentDetail() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const { toast } = useToast();
 
-  const { record, payments, loading, error, setError } = useInstallment(id);
+  const { record, payments, loading, error } = useInstallment(id);
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -90,7 +92,7 @@ export default function InstallmentDetail() {
       } else if (err instanceof Error) {
         message = err.message;
       }
-      setError(message);
+      toast("error", message);
     } finally {
       setDeleting(false);
     }
@@ -168,7 +170,7 @@ export default function InstallmentDetail() {
         </div>
       </div>
 
-      {/* Inline error */}
+      {/* Inline error — only for fetch errors, not action errors */}
       {error && record && (
         <div className="mb-6 rounded-xl border border-red-200/60 bg-red-50/70 px-4 py-3 text-center text-sm font-medium text-red-600">
           {error}
@@ -319,7 +321,6 @@ export default function InstallmentDetail() {
             prev.filter((p) => p.installment_number !== installmentNumber),
           );
         }}
-        onError={setError}
       />
 
       {/* Timestamps */}
@@ -348,7 +349,9 @@ export default function InstallmentDetail() {
         variant="danger"
         loading={deleting}
         onConfirm={handleDeleteConfirm}
-        onCancel={() => setConfirmDeleteOpen(false)}
+        onCancel={() => {
+          if (!deleting) setConfirmDeleteOpen(false);
+        }}
       />
     </div>
   );

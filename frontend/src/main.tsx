@@ -5,6 +5,7 @@ import "./index.css";
 import "./App.css";
 import App from "./App";
 import { AuthProvider } from "./context/auth-provider";
+import { ToastProvider } from "./components/toast";
 import { ErrorBoundary } from "./components/ui/error-boundary";
 
 createRoot(document.getElementById("root")!).render(
@@ -12,7 +13,9 @@ createRoot(document.getElementById("root")!).render(
     <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>
-          <App />
+          <ToastProvider>
+            <App />
+          </ToastProvider>
         </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>

@@ -3,6 +3,7 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import type { InstallmentPayment } from "../../../types/installment";
 import { getTodayISO } from "../../../lib/jalali";
 import { usePayment } from "../../../hooks/use-payment";
+import { useToast } from "../../toast";
 import CustomSelect from "../../custom-select";
 import JalaliDatePicker from "../../jalali-date-picker";
 
@@ -30,15 +31,16 @@ export default function PaymentForm({
   const [paymentNote, setPaymentNote] = useState("");
 
   const { storePayment, submitting } = usePayment();
+  const { toast } = useToast();
 
   const handleSubmit = useCallback(async () => {
     if (!paymentMethod) {
-      onError("لطفاً شیوه پرداخت را انتخاب کنید");
+      toast("warning", "لطفاً شیوه پرداخت را انتخاب کنید.");
       return;
     }
 
     if (!paymentDate) {
-      onError("لطفاً تاریخ پرداخت را وارد کنید");
+      toast("warning", "لطفاً تاریخ پرداخت را وارد کنید.");
       return;
     }
 

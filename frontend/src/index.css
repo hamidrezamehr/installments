@@ -28,3 +28,50 @@ body {
   direction: rtl;
   text-align: right;
 }
+
+/* Toast & modal animations */
+@keyframes animate-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-in {
+  animation: animate-in 0.25s ease-out both;
+}
+
+.slide-in-from-top-2 {
+  animation-name: animate-in;
+}
+
+.fade-in {
+  animation-name: animate-in;
+}
+
+@keyframes accordion-open {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 300px;
+  }
+}
+
+.accordion-enter {
+  animation: accordion-open 0.2s ease-out both;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-in,
+  .accordion-enter {
+    animation: none !important;
+  }
+}
