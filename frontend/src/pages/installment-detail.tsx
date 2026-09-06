@@ -18,12 +18,16 @@ import {
   CheckCircle2,
   CircleDot,
   Circle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { toJalaali, toGregorian, jalaaliMonthLength } from "jalaali-js";
-import type { InstallmentRecord } from "../types/installment";
-import { getInstallment, deleteInstallment, togglePayment } from "../api/installments";
-import { PAYMENT_METHOD_LABELS } from "../types/installment";
-import ConfirmDialog from "../components/confirm-dialog"
+import type { InstallmentRecord, InstallmentPayment } from "../types/installment";
+import { getInstallment, deleteInstallment, storePayment, deletePayment } from "../api/installments";
+import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_OPTIONS } from "../types/installment";
+import ConfirmDialog from "../components/confirm-dialog";
+import JalaliDatePicker from "../components/jalali-date-picker";
+import CustomSelect from "../components/custom-select";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("fa-IR").format(amount) + " ریال";
@@ -54,6 +58,7 @@ interface ScheduleItem {
   dueDateGregorian: string; // "2026-04-04"
   due: boolean;            // due date has arrived
   paid: boolean;           // actually paid (from DB)
+  payment?: InstallmentPayment; // payment details if paid
 }
 
 /** Convert Gregorian YYYY-MM-DD to Jalali {jy,jm,jd} */
@@ -80,13 +85,17 @@ function addJalaliMonths(
 function buildSchedule(
   startDate: string,
   totalInstallments: number,
-  paidNumbers: Set<number>,
+  payments: InstallmentPayment[],
 ): ScheduleItem[] {
   const jalaliStart = isoToJalali(startDate);
   if (!jalaliStart) return [];
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  // Create a map of installment_number → payment for quick lookup
+  const paymentMap = new Map<number, InstallmentPayment>();
+  payments.forEach((p) => paymentMap.set(p.installment_number, p));
 
   const schedule: ScheduleItem[] = [];
   for (let i = 0; i < totalInstallments; i++) {
@@ -95,13 +104,15 @@ function buildSchedule(
     const dueIso = `${String(g.gy).padStart(4, "0")}-${String(g.gm).padStart(2, "0")}-${String(g.gd).padStart(2, "0")}`;
     const dueDate = new Date(dueIso + "T00:00:00");
     const isDue = today >= dueDate;
+    const installmentNumber = i + 1;
 
     schedule.push({
-      index: i + 1,
+      index: installmentNumber,
       dueDateJalali: `${due.jy}/${String(due.jm).padStart(2, "0")}/${String(due.jd).padStart(2, "0")}`,
       dueDateGregorian: dueIso,
       due: isDue,
-      paid: paidNumbers.has(i + 1), // installment_number is 1-based
+      paid: paymentMap.has(installmentNumber),
+      payment: paymentMap.get(installmentNumber),
     });
   }
   return schedule;
@@ -119,17 +130,28 @@ export default function InstallmentDetail() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Payment state: Set of paid installment_numbers (1-based) from DB
-  const [paidNumbers, setPaidNumbers] = useState<Set<number>>(new Set());
+  // Payment state: payments array from DB
+  const [payments, setPayments] = useState<InstallmentPayment[]>([]);
 
-  // Track toggling state per installment to prevent double-clicks
-  const [togglingPayment, setTogglingPayment] = useState<number | null>(null);
+  // Payment form state
+  const [paymentFormOpen, setPaymentFormOpen] = useState<number | null>(null); // installment_number or null
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [paymentDate, setPaymentDate] = useState("");
+  const [paymentNote, setPaymentNote] = useState("");
+  const [submittingPayment, setSubmittingPayment] = useState(false);
+
+  // Accordion state: expanded installment number or null
+  const [expandedAccordion, setExpandedAccordion] = useState<number | null>(null);
+
+  // Unpay confirmation dialog
+  const [unpayConfirmOpen, setUnpayConfirmOpen] = useState<number | null>(null);
+  const [unpaying, setUnpaying] = useState<number | null>(null);
 
   // Build schedule from installment data + DB payment state
   const data = record?.data;
   const schedule = useMemo(
-    () => buildSchedule(data?.start_date ?? "", data?.total_installments ?? 0, paidNumbers),
-    [data?.start_date, data?.total_installments, paidNumbers],
+    () => buildSchedule(data?.start_date ?? "", data?.total_installments ?? 0, payments),
+    [data?.start_date, data?.total_installments, payments],
   );
 
   // Summary counts (overdue = due AND not paid)
@@ -138,32 +160,44 @@ export default function InstallmentDetail() {
   const paidCount = schedule.filter((s) => s.paid).length;
   const remainingCount = totalCount - paidCount;
 
-  // Toggle paid status via API (database-driven)
-  const togglePaid = useCallback(async (installmentNumber: number) => {
-    if (!record?.id || togglingPayment !== null) return;
+  // Store payment via API
+  const handleStorePayment = useCallback(async (installmentNumber: number) => {
+    if (!record?.id || submittingPayment) return;
 
-    setTogglingPayment(installmentNumber);
+    if (!paymentMethod) {
+      setError("لطفاً نحوه پرداخت را انتخاب کنید");
+      setTimeout(() => setError(""), 3000);
+      return;
+    }
+
+    if (!paymentDate) {
+      setError("لطفاً تاریخ پرداخت را وارد کنید");
+      setTimeout(() => setError(""), 3000);
+      return;
+    }
+
+    setSubmittingPayment(true);
 
     try {
-      const result = await togglePayment(record.id, installmentNumber);
+      const result = await storePayment(
+        record.id,
+        installmentNumber,
+        paymentMethod,
+        paymentDate,
+        paymentNote,
+      );
 
-      // Update local state based on API response
-      setPaidNumbers((prev) => {
-        const next = new Set(prev);
-        if (result.paid) {
-          next.add(installmentNumber);
-        } else {
-          next.delete(installmentNumber);
-        }
-        return next;
-      });
-
-      // Show error message from API if present
-      if (result.message && !result.paid) {
-        // Only show if it's a real error, not just a success message
+      // Add the new payment to local state
+      if (result.payment) {
+        setPayments((prev) => [...prev, result.payment]);
       }
+
+      // Close form and reset
+      setPaymentFormOpen(null);
+      setPaymentMethod("");
+      setPaymentDate("");
+      setPaymentNote("");
     } catch (err: unknown) {
-      // Restore previous state on error — do NOT update UI
       let message = "خطا در ثبت پرداخت";
       if (axios.isAxiosError(err)) {
         const respData = err.response?.data;
@@ -172,13 +206,43 @@ export default function InstallmentDetail() {
         }
       }
       setError(message);
-
-      // Clear error after 3 seconds
       setTimeout(() => setError(""), 3000);
     } finally {
-      setTogglingPayment(null);
+      setSubmittingPayment(false);
     }
-  }, [record?.id, paidNumbers, togglingPayment]);
+  }, [record?.id, paymentMethod, paymentDate, paymentNote, submittingPayment]);
+
+  // Delete payment via API (unpay)
+  const handleDeletePayment = useCallback(async (installmentNumber: number) => {
+    if (!record?.id || unpaying !== null) return;
+
+    setUnpaying(installmentNumber);
+
+    try {
+      await deletePayment(record.id, installmentNumber);
+
+      // Remove payment from local state
+      setPayments((prev) => prev.filter((p) => p.installment_number !== installmentNumber));
+
+      // Close accordion if it was open
+      if (expandedAccordion === installmentNumber) {
+        setExpandedAccordion(null);
+      }
+    } catch (err: unknown) {
+      let message = "خطا در لغو پرداخت";
+      if (axios.isAxiosError(err)) {
+        const respData = err.response?.data;
+        if (respData?.message) {
+          message = respData.message;
+        }
+      }
+      setError(message);
+      setTimeout(() => setError(""), 3000);
+    } finally {
+      setUnpaying(null);
+      setUnpayConfirmOpen(null);
+    }
+  }, [record?.id, expandedAccordion, unpaying]);
 
   // Load installment + payments from API
   useEffect(() => {
@@ -192,12 +256,9 @@ export default function InstallmentDetail() {
         if (!cancelled) {
           setRecord(data);
 
-          // Initialize paid numbers from DB payments
+          // Initialize payments from DB
           if (data.payments) {
-            const paid = new Set<number>(
-              data.payments.map((p) => p.installment_number)
-            );
-            setPaidNumbers(paid);
+            setPayments(data.payments);
           }
         }
       } catch (err: unknown) {
@@ -528,61 +589,198 @@ export default function InstallmentDetail() {
           {/* Schedule list — scrollable when many installments */}
           <div className="max-h-[50vh] space-y-2 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-transparent">
             {schedule.map((item) => (
-              <div
-                key={item.index}
-                className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-all ${
-                  item.paid
-                    ? "border-emerald-200/60 bg-emerald-50/50"
-                    : item.due
-                      ? "border-amber-200/60 bg-amber-50/30"
-                      : "border-black/5 bg-gray-50/50"
-                }`}
-              >
-                {/* Checkbox — toggles payment via API */}
-                <button
-                  type="button"
-                  onClick={() => togglePaid(item.index)}
-                  disabled={togglingPayment !== null}
-                  className="shrink-0 focus:outline-none disabled:opacity-50"
-                  aria-label={`قسط ${item.index}`}
+              <div key={item.index}>
+                {/* Main installment row */}
+                <div
+                  className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-all ${
+                    item.paid
+                      ? "border-emerald-200/60 bg-emerald-50/50"
+                      : item.due
+                        ? "border-amber-200/60 bg-amber-50/30"
+                        : "border-black/5 bg-gray-50/50"
+                  }`}
                 >
-                  {togglingPayment === item.index ? (
-                    <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
-                  ) : item.paid ? (
-                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                  ) : item.due ? (
-                    <CircleDot className="h-5 w-5 text-amber-400" />
-                  ) : (
-                    <Circle className="h-5 w-5 text-gray-300" />
-                  )}
-                </button>
-
-                {/* Installment info */}
-                <div className="flex flex-1 items-center justify-between gap-2">
-                  <span className="text-sm font-bold text-gray-900">
-                    قسط {item.index}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">
-                      سررسید: {item.dueDateJalali}
-                    </span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                        item.paid
-                          ? "bg-emerald-100 text-emerald-700"
-                          : item.due
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-gray-100 text-gray-500"
-                      }`}
+                  {/* Checkbox — shows payment form for unpaid, or toggle unpay for paid */}
+                  {item.paid ? (
+                    <button
+                      type="button"
+                      onClick={() => setUnpayConfirmOpen(item.index)}
+                      disabled={unpaying === item.index}
+                      className="shrink-0 focus:outline-none disabled:opacity-50"
+                      aria-label={`لغو پرداخت قسط ${item.index}`}
                     >
-                      {item.paid
-                        ? "پرداخت شده"
-                        : item.due
-                          ? "سررسید شده"
-                          : "آینده"}
+                      {unpaying === item.index ? (
+                        <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
+                      ) : (
+                        <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentFormOpen(item.index);
+                        setPaymentMethod("");
+                        setPaymentDate("");
+                        setPaymentNote("");
+                      }}
+                      disabled={paymentFormOpen !== null}
+                      className="shrink-0 focus:outline-none disabled:opacity-50"
+                      aria-label={`پرداخت قسط ${item.index}`}
+                    >
+                      {item.due ? (
+                        <CircleDot className="h-5 w-5 text-amber-400" />
+                      ) : (
+                        <Circle className="h-5 w-5 text-gray-300" />
+                      )}
+                    </button>
+                  )}
+
+                  {/* Installment info */}
+                  <div className="flex flex-1 items-center justify-between gap-2">
+                    <span className="text-sm font-bold text-gray-900">
+                      قسط {item.index}
                     </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">
+                        سررسید: {item.dueDateJalali}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          item.paid
+                            ? "bg-emerald-100 text-emerald-700"
+                            : item.due
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-gray-100 text-gray-500"
+                        }`}
+                      >
+                        {item.paid
+                          ? "پرداخت شده"
+                          : item.due
+                            ? "سررسید شده"
+                            : "آینده"}
+                      </span>
+                      {/* Accordion toggle for paid installments */}
+                      {item.paid && item.payment && (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedAccordion(expandedAccordion === item.index ? null : item.index)}
+                          className="flex h-5 w-5 items-center justify-center text-gray-400 hover:text-gray-600"
+                        >
+                          {expandedAccordion === item.index ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
+
+                {/* Accordion for paid installments */}
+                {item.paid && item.payment && expandedAccordion === item.index && (
+                  <div className="ml-8 mr-4 mt-1 rounded-xl border border-emerald-200/40 bg-emerald-50/30 p-4 transition-all">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-3.5 w-3.5 text-emerald-500" />
+                        <span className="text-xs font-semibold text-gray-500">تاریخ پرداخت:</span>
+                        <span className="text-xs font-bold text-gray-900">
+                          {item.payment.payment_date ? formatJalaliDate(item.payment.payment_date) : "—"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="h-3.5 w-3.5 text-emerald-500" />
+                        <span className="text-xs font-semibold text-gray-500">نحوه پرداخت:</span>
+                        <span className="text-xs font-bold text-gray-900">
+                          {item.payment.payment_method || "—"}
+                        </span>
+                      </div>
+                      {item.payment.note && (
+                        <div className="flex items-start gap-2">
+                          <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                          <span className="text-xs font-semibold text-gray-500">یادداشت:</span>
+                          <span className="text-xs text-gray-700">{item.payment.note}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Payment form for unpaid installments */}
+                {paymentFormOpen === item.index && (
+                  <div className="ml-8 mr-4 mt-1 rounded-xl border border-amber-200/40 bg-amber-50/30 p-4 transition-all">
+                    <h4 className="mb-3 text-xs font-bold text-gray-700">
+                      ثبت پرداخت قسط {item.index}
+                    </h4>
+                    <div className="space-y-3">
+                      {/* Payment Method */}
+                      <div>
+                        <label className="mb-1 block text-[11px] font-semibold text-gray-500">
+                          نحوه پرداخت *
+                        </label>
+                        <CustomSelect
+                          value={paymentMethod}
+                          options={PAYMENT_METHOD_OPTIONS}
+                          placeholder="انتخاب کنید..."
+                          onChange={setPaymentMethod}
+                          required
+                        />
+                      </div>
+
+                      {/* Payment Date */}
+                      <div>
+                        <label className="mb-1 block text-[11px] font-semibold text-gray-500">
+                          تاریخ پرداخت *
+                        </label>
+                        <JalaliDatePicker
+                          value={paymentDate}
+                          onChange={setPaymentDate}
+                          required
+                        />
+                      </div>
+
+                      {/* Note */}
+                      <div>
+                        <label className="mb-1 block text-[11px] font-semibold text-gray-500">
+                          یادداشت
+                        </label>
+                        <input
+                          type="text"
+                          value={paymentNote}
+                          onChange={(e) => setPaymentNote(e.target.value)}
+                          placeholder="اختیاری..."
+                          className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-xs text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleStorePayment(item.index)}
+                          disabled={submittingPayment}
+                          className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-emerald-600 disabled:opacity-50"
+                        >
+                          {submittingPayment ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          )}
+                          ثبت پرداخت
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPaymentFormOpen(null)}
+                          disabled={submittingPayment}
+                          className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-all hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          انصراف
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -616,6 +814,19 @@ export default function InstallmentDetail() {
         loading={deleting}
         onConfirm={handleDeleteConfirm}
         onCancel={() => setConfirmDeleteOpen(false)}
+      />
+
+      {/* Unpay Confirmation Dialog */}
+      <ConfirmDialog
+        open={unpayConfirmOpen !== null}
+        title="لغو پرداخت"
+        description={`آیا از لغو پرداخت قسط ${unpayConfirmOpen} اطمینان دارید؟`}
+        confirmLabel="بله، لغو شود"
+        cancelLabel="انصراف"
+        variant="danger"
+        loading={unpaying !== null}
+        onConfirm={() => unpayConfirmOpen !== null && handleDeletePayment(unpayConfirmOpen)}
+        onCancel={() => setUnpayConfirmOpen(null)}
       />
     </div>
   );

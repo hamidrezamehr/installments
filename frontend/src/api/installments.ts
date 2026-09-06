@@ -1,5 +1,5 @@
 import api from "../api";
-import type { BankFacility, InstallmentRecord } from "../types/installment";
+import type { BankFacility, InstallmentRecord, InstallmentPayment } from "../types/installment";
 
 /** Create a new bank facility installment */
 export async function createBankFacility(data: BankFacility): Promise<InstallmentRecord> {
@@ -36,14 +36,33 @@ export async function deleteInstallment(id: number): Promise<void> {
   await api.delete(`/installments/${id}`);
 }
 
-/** Toggle payment for an installment (pay/unpay) */
-export async function togglePayment(
+/** Store payment for an installment with details */
+export async function storePayment(
+  installmentId: number,
+  installmentNumber: number,
+  paymentMethod: string,
+  paymentDate: string,
+  note?: string,
+): Promise<{ paid: boolean; message: string; payment: InstallmentPayment }> {
+  const response = await api.post<{ paid: boolean; message: string; payment: InstallmentPayment }>(
+    `/installments/${installmentId}/payments`,
+    {
+      installment_number: installmentNumber,
+      payment_method: paymentMethod,
+      payment_date: paymentDate,
+      note: note || null,
+    },
+  );
+  return response.data;
+}
+
+/** Delete payment for an installment (unpay) */
+export async function deletePayment(
   installmentId: number,
   installmentNumber: number,
 ): Promise<{ paid: boolean; message: string }> {
-  const response = await api.post<{ paid: boolean; message: string }>(
-    `/installments/${installmentId}/payments`,
-    { installment_number: installmentNumber },
+  const response = await api.delete<{ paid: boolean; message: string }>(
+    `/installments/${installmentId}/payments/${installmentNumber}`,
   );
   return response.data;
 }

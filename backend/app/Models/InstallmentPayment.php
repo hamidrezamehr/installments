@@ -14,12 +14,16 @@ class InstallmentPayment extends Model
         'installment_id',
         'installment_number',
         'paid_at',
+        'payment_method',
+        'note',
+        'payment_date',
     ];
 
     protected function casts(): array
     {
         return [
             'paid_at' => 'datetime',
+            'payment_date' => 'date',
         ];
     }
 

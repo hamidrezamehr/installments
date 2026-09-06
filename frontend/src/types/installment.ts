@@ -48,6 +48,9 @@ export interface InstallmentPayment {
   installment_id: number;
   installment_number: number;
   paid_at: string;
+  payment_method?: string;
+  payment_date?: string;
+  note?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -69,6 +72,15 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethodType, string> = {
   account_number: "شماره حساب",
   facility_number: "شماره تسهیلات",
 };
+
+/** Payment method options for payment form */
+export const PAYMENT_METHOD_OPTIONS = [
+  { value: "کارت", label: "کارت" },
+  { value: "نقدی", label: "نقدی" },
+  { value: "انتقال بانکی", label: "انتقال بانکی" },
+  { value: "چک", label: "چک" },
+  { value: "سایر", label: "سایر" },
+];
 
 /** All available payment categories */
 export const PAYMENT_CATEGORIES: PaymentCategoryInfo[] = [

@@ -27,6 +27,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/installments/{id}', [InstallmentController::class, 'update']);
     Route::delete('/installments/{id}', [InstallmentController::class, 'destroy']);
 
-    // Payment toggle (pay/unpay)
-    Route::post('/installments/{id}/payments', [InstallmentController::class, 'togglePayment']);
+    // Payment management
+    Route::post('/installments/{id}/payments', [InstallmentController::class, 'storePayment']);
+    Route::delete('/installments/{id}/payments/{paymentNumber}', [InstallmentController::class, 'deletePayment']);
 });

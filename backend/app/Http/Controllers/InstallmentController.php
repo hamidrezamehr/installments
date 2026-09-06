@@ -63,7 +63,7 @@ class InstallmentController extends Controller
         try {
             $installment = Installment::where('user_id', $request->user()->id)
                 ->with(['payments' => function ($query) {
-                    $query->select('id', 'installment_id', 'installment_number', 'paid_at')
+                    $query->select('id', 'installment_id', 'installment_number', 'paid_at', 'payment_method', 'note', 'payment_date')
                         ->orderBy('installment_number');
                 }])
                 ->findOrFail($id);
@@ -208,13 +208,13 @@ class InstallmentController extends Controller
     }
 
     /**
-     * Toggle a payment for an installment.
+     * Store payment for an installment.
      * POST /api/installments/{id}/payments
      *
-     * If payment exists for installment_number → delete it (unpay)
-     * If payment does not exist → create it (pay)
+     * Creates a payment record with details.
+     * If payment already exists for this installment_number, return error.
      */
-    public function togglePayment(Request $request, int $id): JsonResponse
+    public function storePayment(Request $request, int $id): JsonResponse
     {
         if ($tableError = $this->ensureTableExists()) {
             return $tableError;
@@ -226,6 +226,9 @@ class InstallmentController extends Controller
 
         $validated = $request->validate([
             'installment_number' => 'required|integer|min:1',
+            'payment_method' => 'required|string|max:255',
+            'payment_date' => 'required|date',
+            'note' => 'nullable|string|max:1000',
         ]);
 
         $installmentNumber = $validated['installment_number'];
@@ -239,39 +242,80 @@ class InstallmentController extends Controller
         }
 
         try {
+            // Check if payment already exists
             $existingPayment = InstallmentPayment::where('installment_id', $installment->id)
                 ->where('installment_number', $installmentNumber)
                 ->first();
 
             if ($existingPayment) {
-                // Unpay: delete the payment record
-                $existingPayment->delete();
-
                 return response()->json([
-                    'message' => 'پرداخت لغو شد',
-                    'paid' => false,
-                ]);
-            } else {
-                // Pay: create a payment record
-                $payment = InstallmentPayment::create([
-                    'installment_id' => $installment->id,
-                    'installment_number' => $installmentNumber,
-                    'paid_at' => now(),
-                ]);
-
-                return response()->json([
-                    'message' => 'پرداخت ثبت شد',
-                    'paid' => true,
-                    'payment' => [
-                        'id' => $payment->id,
-                        'installment_number' => $payment->installment_number,
-                        'paid_at' => $payment->paid_at,
-                    ],
-                ], 201);
+                    'message' => 'این قسط قبلاً پرداخت شده است',
+                ], 409);
             }
+
+            // Create payment record
+            $payment = InstallmentPayment::create([
+                'installment_id' => $installment->id,
+                'installment_number' => $installmentNumber,
+                'paid_at' => now(),
+                'payment_method' => $validated['payment_method'],
+                'payment_date' => $validated['payment_date'],
+                'note' => $validated['note'] ?? null,
+            ]);
+
+            return response()->json([
+                'message' => 'پرداخت ثبت شد',
+                'paid' => true,
+                'payment' => [
+                    'id' => $payment->id,
+                    'installment_number' => $payment->installment_number,
+                    'paid_at' => $payment->paid_at,
+                    'payment_method' => $payment->payment_method,
+                    'payment_date' => $payment->payment_date?->format('Y-m-d'),
+                    'note' => $payment->note,
+                ],
+            ], 201);
         } catch (QueryException $e) {
             return response()->json([
                 'message' => 'خطا در ثبت پرداخت',
+                'detail' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete payment for an installment (unpay).
+     * DELETE /api/installments/{id}/payments/{paymentNumber}
+     */
+    public function deletePayment(Request $request, int $id, int $paymentNumber): JsonResponse
+    {
+        if ($tableError = $this->ensureTableExists()) {
+            return $tableError;
+        }
+
+        $installment = Installment::where('user_id', $request->user()->id)
+            ->findOrFail($id);
+
+        try {
+            $payment = InstallmentPayment::where('installment_id', $installment->id)
+                ->where('installment_number', $paymentNumber)
+                ->first();
+
+            if (!$payment) {
+                return response()->json([
+                    'message' => 'پرداختی برای این قسط یافت نشد',
+                ], 404);
+            }
+
+            $payment->delete();
+
+            return response()->json([
+                'message' => 'پرداخت لغو شد',
+                'paid' => false,
+            ]);
+        } catch (QueryException $e) {
+            return response()->json([
+                'message' => 'خطا در لغو پرداخت',
                 'detail' => $e->getMessage(),
             ], 500);
         }
