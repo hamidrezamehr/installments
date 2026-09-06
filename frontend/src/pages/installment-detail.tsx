@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { toJalaali, toGregorian, jalaaliMonthLength } from "jalaali-js";
 import type { InstallmentRecord } from "../types/installment";
-import { getInstallment, deleteInstallment } from "../api/installments";
+import { getInstallment, deleteInstallment, togglePayment } from "../api/installments";
 import { PAYMENT_METHOD_LABELS } from "../types/installment";
 import ConfirmDialog from "../components/confirm-dialog"
 
@@ -53,7 +53,7 @@ interface ScheduleItem {
   dueDateJalali: string;   // "1405/01/15"
   dueDateGregorian: string; // "2026-04-04"
   due: boolean;            // due date has arrived
-  paid: boolean;           // actually paid (future: from DB)
+  paid: boolean;           // actually paid (from DB)
 }
 
 /** Convert Gregorian YYYY-MM-DD to Jalali {jy,jm,jd} */
@@ -76,11 +76,11 @@ function addJalaliMonths(
   return { jy: newJy, jm: newJm, jd: newJd };
 }
 
-/** Build payment schedule from installment data */
+/** Build payment schedule from installment data + DB payments */
 function buildSchedule(
   startDate: string,
   totalInstallments: number,
-  paidIndices: Set<number>,
+  paidNumbers: Set<number>,
 ): ScheduleItem[] {
   const jalaliStart = isoToJalali(startDate);
   if (!jalaliStart) return [];
@@ -101,7 +101,7 @@ function buildSchedule(
       dueDateJalali: `${due.jy}/${String(due.jm).padStart(2, "0")}/${String(due.jd).padStart(2, "0")}`,
       dueDateGregorian: dueIso,
       due: isDue,
-      paid: paidIndices.has(i),
+      paid: paidNumbers.has(i + 1), // installment_number is 1-based
     });
   }
   return schedule;
@@ -119,35 +119,68 @@ export default function InstallmentDetail() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Payment schedule: local paid state (ready for future DB persistence)
-  const [paidIndices, setPaidIndices] = useState<Set<number>>(new Set());
+  // Payment state: Set of paid installment_numbers (1-based) from DB
+  const [paidNumbers, setPaidNumbers] = useState<Set<number>>(new Set());
 
-  // Build schedule from installment data
+  // Track toggling state per installment to prevent double-clicks
+  const [togglingPayment, setTogglingPayment] = useState<number | null>(null);
+
+  // Build schedule from installment data + DB payment state
   const data = record?.data;
   const schedule = useMemo(
-    () => buildSchedule(data?.start_date ?? "", data?.total_installments ?? 0, paidIndices),
-    [data?.start_date, data?.total_installments, paidIndices],
+    () => buildSchedule(data?.start_date ?? "", data?.total_installments ?? 0, paidNumbers),
+    [data?.start_date, data?.total_installments, paidNumbers],
   );
 
-  // Summary counts
+  // Summary counts (overdue = due AND not paid)
   const totalCount = schedule.length;
-  const dueCount = schedule.filter((s) => s.due).length;
+  const dueCount = schedule.filter((s) => s.due && !s.paid).length;
   const paidCount = schedule.filter((s) => s.paid).length;
   const remainingCount = totalCount - paidCount;
 
-  // Toggle paid status (placeholder: local only, will connect to API later)
-  const togglePaid = useCallback((index: number) => {
-    setPaidIndices((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) {
-        next.delete(index);
-      } else {
-        next.add(index);
-      }
-      return next;
-    });
-  }, []);
+  // Toggle paid status via API (database-driven)
+  const togglePaid = useCallback(async (installmentNumber: number) => {
+    if (!record?.id || togglingPayment !== null) return;
 
+    setTogglingPayment(installmentNumber);
+
+    try {
+      const result = await togglePayment(record.id, installmentNumber);
+
+      // Update local state based on API response
+      setPaidNumbers((prev) => {
+        const next = new Set(prev);
+        if (result.paid) {
+          next.add(installmentNumber);
+        } else {
+          next.delete(installmentNumber);
+        }
+        return next;
+      });
+
+      // Show error message from API if present
+      if (result.message && !result.paid) {
+        // Only show if it's a real error, not just a success message
+      }
+    } catch (err: unknown) {
+      // Restore previous state on error — do NOT update UI
+      let message = "خطا در ثبت پرداخت";
+      if (axios.isAxiosError(err)) {
+        const respData = err.response?.data;
+        if (respData?.message) {
+          message = respData.message;
+        }
+      }
+      setError(message);
+
+      // Clear error after 3 seconds
+      setTimeout(() => setError(""), 3000);
+    } finally {
+      setTogglingPayment(null);
+    }
+  }, [record?.id, paidNumbers, togglingPayment]);
+
+  // Load installment + payments from API
   useEffect(() => {
     if (!id) return;
 
@@ -158,6 +191,14 @@ export default function InstallmentDetail() {
         const data = await getInstallment(Number(id));
         if (!cancelled) {
           setRecord(data);
+
+          // Initialize paid numbers from DB payments
+          if (data.payments) {
+            const paid = new Set<number>(
+              data.payments.map((p) => p.installment_number)
+            );
+            setPaidNumbers(paid);
+          }
         }
       } catch (err: unknown) {
         if (cancelled) return;
@@ -293,7 +334,7 @@ export default function InstallmentDetail() {
         </div>
       </div>
 
-      {/* Inline error (after successful fetch but delete failed) */}
+      {/* Inline error (after successful fetch but delete/payment failed) */}
       {error && record && (
         <div className="mb-6 rounded-xl border border-red-200/60 bg-red-50/70 px-4 py-3 text-center text-sm font-medium text-red-600">
           {error}
@@ -497,14 +538,17 @@ export default function InstallmentDetail() {
                       : "border-black/5 bg-gray-50/50"
                 }`}
               >
-                {/* Checkbox */}
+                {/* Checkbox — toggles payment via API */}
                 <button
                   type="button"
-                  onClick={() => togglePaid(item.index - 1)}
-                  className="shrink-0 focus:outline-none"
+                  onClick={() => togglePaid(item.index)}
+                  disabled={togglingPayment !== null}
+                  className="shrink-0 focus:outline-none disabled:opacity-50"
                   aria-label={`قسط ${item.index}`}
                 >
-                  {item.paid ? (
+                  {togglingPayment === item.index ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
+                  ) : item.paid ? (
                     <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                   ) : item.due ? (
                     <CircleDot className="h-5 w-5 text-amber-400" />

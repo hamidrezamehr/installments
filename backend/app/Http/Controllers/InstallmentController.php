@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Installment;
+use App\Models\InstallmentPayment;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class InstallmentController extends Controller
@@ -49,7 +51,7 @@ class InstallmentController extends Controller
     }
 
     /**
-     * Show a single installment.
+     * Show a single installment with its payments.
      * GET /api/installments/{id}
      */
     public function show(Request $request, int $id): JsonResponse
@@ -60,6 +62,10 @@ class InstallmentController extends Controller
 
         try {
             $installment = Installment::where('user_id', $request->user()->id)
+                ->with(['payments' => function ($query) {
+                    $query->select('id', 'installment_id', 'installment_number', 'paid_at')
+                        ->orderBy('installment_number');
+                }])
                 ->findOrFail($id);
 
             return response()->json($installment);
@@ -196,6 +202,76 @@ class InstallmentController extends Controller
         } catch (QueryException $e) {
             return response()->json([
                 'message' => 'خطا در حذف قسط',
+                'detail' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Toggle a payment for an installment.
+     * POST /api/installments/{id}/payments
+     *
+     * If payment exists for installment_number → delete it (unpay)
+     * If payment does not exist → create it (pay)
+     */
+    public function togglePayment(Request $request, int $id): JsonResponse
+    {
+        if ($tableError = $this->ensureTableExists()) {
+            return $tableError;
+        }
+
+        $installment = Installment::where('user_id', $request->user()->id)
+            ->with('payments')
+            ->findOrFail($id);
+
+        $validated = $request->validate([
+            'installment_number' => 'required|integer|min:1',
+        ]);
+
+        $installmentNumber = $validated['installment_number'];
+        $totalInstallments = $installment->data['total_installments'] ?? 0;
+
+        // Validate installment number is within range
+        if ($installmentNumber > $totalInstallments) {
+            return response()->json([
+                'message' => 'شماره قسط نامعتبر است',
+            ], 422);
+        }
+
+        try {
+            $existingPayment = InstallmentPayment::where('installment_id', $installment->id)
+                ->where('installment_number', $installmentNumber)
+                ->first();
+
+            if ($existingPayment) {
+                // Unpay: delete the payment record
+                $existingPayment->delete();
+
+                return response()->json([
+                    'message' => 'پرداخت لغو شد',
+                    'paid' => false,
+                ]);
+            } else {
+                // Pay: create a payment record
+                $payment = InstallmentPayment::create([
+                    'installment_id' => $installment->id,
+                    'installment_number' => $installmentNumber,
+                    'paid_at' => now(),
+                ]);
+
+                return response()->json([
+                    'message' => 'پرداخت ثبت شد',
+                    'paid' => true,
+                    'payment' => [
+                        'id' => $payment->id,
+                        'installment_number' => $payment->installment_number,
+                        'paid_at' => $payment->paid_at,
+                    ],
+                ], 201);
+            }
+        } catch (QueryException $e) {
+            return response()->json([
+                'message' => 'خطا در ثبت پرداخت',
                 'detail' => $e->getMessage(),
             ], 500);
         }
