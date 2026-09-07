@@ -1,8 +1,8 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import axios from "axios";
 
-import api from "../api";
+import api from "../lib/api";
+import { getApiErrorMessage } from "../lib/api-errors";
 
 interface RegisterForm {
   name: string;
@@ -20,10 +20,6 @@ interface RegisterResponse {
     email: string;
   };
   token: string;
-}
-
-interface ValidationErrors {
-  [key: string]: string[];
 }
 
 function Register() {
@@ -65,18 +61,7 @@ function Register() {
       });
       setTimeout(() => navigate("/login"), 2000);
     } catch (error: unknown) {
-      console.error(error);
-      if (axios.isAxiosError(error)) {
-        if (error.response?.status === 422) {
-          const errors = error.response.data.errors as ValidationErrors;
-          const messages = Object.values(errors).flat();
-          setError(messages.join("\n"));
-        } else {
-          setError(error.response?.data?.message || "مشکلی پیش آمده است");
-        }
-      } else {
-        setError("مشکلی پیش آمده است");
-      }
+      setError(getApiErrorMessage(error));
     } finally {
       setLoading(false);
     }

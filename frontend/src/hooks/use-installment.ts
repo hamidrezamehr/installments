@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type { InstallmentRecord, InstallmentPayment } from "../types/installment";
 import * as installmentApi from "../services/installment-api";
+import { getApiErrorMessage } from "../lib/api-errors";
 
 interface UseInstallmentResult {
   record: InstallmentRecord | null;
@@ -33,38 +34,7 @@ export function useInstallment(id: string | undefined): UseInstallmentResult {
         }
       } catch (err: unknown) {
         if (cancelled) return;
-
-        let message = "خطا در دریافت اطلاعات قسط";
-
-        if (
-          typeof err === "object" &&
-          err !== null &&
-          "isAxiosError" in err &&
-          typeof (err as { isAxiosError: Function }).isAxiosError === "function"
-        ) {
-          const axiosErr = err as {
-            response?: {
-              data?: { message?: string; detail?: string };
-              status?: number;
-              statusText?: string;
-            };
-          };
-          const respData = axiosErr.response?.data;
-          if (respData?.message) {
-            message = respData.message;
-            if (respData.detail) message += ` (${respData.detail})`;
-          } else if (axiosErr.response?.status === 404) {
-            message = "قسط مورد نظر یافت نشد";
-          } else if (axiosErr.response?.status === 401) {
-            message = "احراز هویت ناموفق. لطفاً دوباره وارد شوید.";
-          } else if (axiosErr.response?.statusText) {
-            message = `${axiosErr.response.status} - ${axiosErr.response.statusText}`;
-          }
-        } else if (err instanceof Error) {
-          message = err.message;
-        }
-
-        setError(message);
+        setError(getApiErrorMessage(err, "خطا در دریافت اطلاعات قسط"));
       } finally {
         if (!cancelled) setLoading(false);
       }

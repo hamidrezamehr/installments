@@ -23,11 +23,11 @@ Route::middleware('auth:sanctum')->group(function () {
     // Installments
     Route::get('/installments', [InstallmentController::class, 'index']);
     Route::post('/installments/bank-facility', [InstallmentController::class, 'storeBankFacility']);
-    Route::get('/installments/{id}', [InstallmentController::class, 'show']);
-    Route::put('/installments/{id}', [InstallmentController::class, 'update']);
-    Route::delete('/installments/{id}', [InstallmentController::class, 'destroy']);
+    Route::get('/installments/{installment}', [InstallmentController::class, 'show']);
+    Route::put('/installments/{installment}', [InstallmentController::class, 'update']);
+    Route::delete('/installments/{installment}', [InstallmentController::class, 'destroy']);
 
     // Payment management
-    Route::post('/installments/{id}/payments', [InstallmentController::class, 'storePayment']);
-    Route::delete('/installments/{id}/payments/{paymentNumber}', [InstallmentController::class, 'deletePayment']);
+    Route::post('/installments/{installment}/payments', [InstallmentController::class, 'storePayment']);
+    Route::delete('/installments/{installment}/payments/{paymentNumber}', [InstallmentController::class, 'deletePayment']);
 });

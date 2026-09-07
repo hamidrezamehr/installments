@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
 import {
   Calendar,
   CheckCircle2,
@@ -11,6 +10,7 @@ import {
 import type { InstallmentPayment } from "../../../types/installment";
 import { usePayment } from "../../../hooks/use-payment";
 import { useToast } from "../../toast";
+import ConfirmDialog from "../../confirm-dialog";
 import PaymentForm from "./payment-form";
 import PaymentAccordion from "./payment-accordion";
 
@@ -288,107 +288,32 @@ export default function PaymentSchedule({
         })}
       </div>
 
-      {/* Unpay confirmation — rendered via portal to cover entire layout */}
-      {unpayConfirmOpen !== null &&
-        createPortal(
-          <UnpayConfirmDialog
-            installmentNumber={unpayConfirmOpen}
-            facilityId={facilityId}
-            loading={submitting}
-            onConfirm={async () => {
-              const success = await deletePayment(facilityId, unpayConfirmOpen);
-              if (success) {
-                onPaymentDeleted(unpayConfirmOpen);
-                toast("success", `پرداخت قسط شماره ${unpayConfirmOpen} لغو شد.`);
-              } else {
-                toast("error", "لغو پرداخت با خطا مواجه شد. لطفاً دوباره تلاش کنید.");
-              }
-              setUnpayConfirmOpen(null);
-            }}
-            onCancel={() => {
-              if (!submitting) setUnpayConfirmOpen(null);
-            }}
-          />,
-          document.body,
-        )}
+      {/* Unpay confirmation dialog */}
+      <ConfirmDialog
+        open={unpayConfirmOpen !== null}
+        title="لغو پرداخت"
+        description={`آیا از لغو پرداخت قسط ${unpayConfirmOpen} اطمینان دارید؟`}
+        confirmLabel="بله، لغو شود"
+        cancelLabel="انصراف"
+        variant="danger"
+        loading={submitting}
+        onConfirm={async () => {
+          if (unpayConfirmOpen === null) return;
+          const num = unpayConfirmOpen;
+          const success = await deletePayment(facilityId, num);
+          if (success) {
+            onPaymentDeleted(num);
+            toast("success", `پرداخت قسط شماره ${num} لغو شد.`);
+          } else {
+            toast("error", "لغو پرداخت با خطا مواجه شد. لطفاً دوباره تلاش کنید.");
+          }
+          setUnpayConfirmOpen(null);
+        }}
+        onCancel={() => {
+          if (!submitting) setUnpayConfirmOpen(null);
+        }}
+      />
     </div>
   );
 }
 
-/* ─── Unpay Confirm Dialog (Portal-based) ─── */
-
-interface UnpayConfirmDialogProps {
-  installmentNumber: number;
-  facilityId: number;
-  loading: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
-}
-
-function UnpayConfirmDialog({
-  installmentNumber,
-  loading,
-  onConfirm,
-  onCancel,
-}: UnpayConfirmDialogProps) {
-  const backdropRef = useRef<HTMLDivElement>(null);
-
-  // Close on Escape
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && !loading) onCancel();
-    }
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [loading, onCancel]);
-
-  // Prevent background scrolling
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, []);
-
-  return (
-    <div
-      ref={backdropRef}
-      onClick={(e) => {
-        if (e.target === backdropRef.current && !loading) onCancel();
-      }}
-      dir="rtl"
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-    >
-      <div className="w-full max-w-sm rounded-2xl border border-white/40 bg-white/90 p-6 shadow-2xl shadow-black/10 backdrop-blur-xl animate-in">
-        <h3 className="text-[15px] font-bold text-gray-900">
-          لغو پرداخت
-        </h3>
-        <p className="mt-2 text-sm text-gray-500">
-          آیا از لغو پرداخت قسط {installmentNumber} اطمینان دارید؟
-        </p>
-        <div className="mt-5 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={loading}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-red-500/25 transition-all hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading && (
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-            )}
-            بله، لغو شود
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={loading}
-            className="flex flex-1 items-center justify-center rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 transition-all hover:bg-gray-50 disabled:opacity-50"
-          >
-            انصراف
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}

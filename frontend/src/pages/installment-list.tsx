@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 import {
   Plus,
   Pencil,
@@ -10,27 +9,13 @@ import {
   Calendar,
   Inbox,
 } from "lucide-react";
-import { toJalaali } from "jalaali-js";
 import type { InstallmentRecord } from "../types/installment";
-import { getInstallments, deleteInstallment } from "../api/installments";
+import { getInstallments, deleteInstallment } from "../services/installment-api";
+import { formatCurrency } from "../lib/currency";
+import { formatJalaliDate } from "../lib/jalali";
+import { getApiErrorMessage } from "../lib/api-errors";
 import ConfirmDialog from "../components/confirm-dialog";
 import { ListSkeleton } from "../components/ui/skeleton";
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("fa-IR").format(amount) + " ریال";
-}
-
-function formatJalaliDate(dateStr: string): string {
-  if (!dateStr) return "—";
-  try {
-    const d = new Date(dateStr + (dateStr.includes("T") ? "" : "T00:00:00"));
-    if (isNaN(d.getTime())) return dateStr;
-    const j = toJalaali(d);
-    return `${j.jy}/${String(j.jm).padStart(2, "0")}/${String(j.jd).padStart(2, "0")}`;
-  } catch {
-    return dateStr;
-  }
-}
 
 export default function InstallmentList() {
   const navigate = useNavigate();
@@ -56,28 +41,7 @@ export default function InstallmentList() {
         }
       } catch (err: unknown) {
         if (cancelled) return;
-
-        let message = "خطا در دریافت لیست اقساط";
-
-        if (axios.isAxiosError(err)) {
-          const data = err.response?.data;
-
-          if (data?.message) {
-            message = data.message;
-
-            if (data.detail) {
-              message += ` (${data.detail})`;
-            }
-          } else if (err.response?.status === 401) {
-            message = "احراز هویت ناموفق. لطفاً دوباره وارد شوید.";
-          } else if (err.response?.statusText) {
-            message = `${err.response.status} - ${err.response.statusText}`;
-          }
-        } else if (err instanceof Error) {
-          message = err.message;
-        }
-
-        setError(message);
+        setError(getApiErrorMessage(err, "خطا در دریافت لیست اقساط"));
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -100,19 +64,7 @@ export default function InstallmentList() {
       setRecords((prev) => prev.filter((r) => r.id !== deleteTarget.id));
       setDeleteTarget(null);
     } catch (err: unknown) {
-      let message = "خطا در حذف قسط";
-      if (axios.isAxiosError(err)) {
-        const data = err.response?.data;
-        if (data?.message) {
-          message = data.message;
-          if (data.detail) message += ` (${data.detail})`;
-        } else if (err.response?.statusText) {
-          message = `${err.response.status} - ${err.response.statusText}`;
-        }
-      } else if (err instanceof Error) {
-        message = err.message;
-      }
-      setError(message);
+      setError(getApiErrorMessage(err, "خطا در حذف قسط"));
     } finally {
       setDeleting(false);
     }

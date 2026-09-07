@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import * as installmentApi from "../services/installment-api";
+import { getApiErrorMessage } from "../lib/api-errors";
 
 interface UsePaymentResult {
   storePayment: (
@@ -46,21 +47,7 @@ export function usePayment(): UsePaymentResult {
         );
         return true;
       } catch (err: unknown) {
-        let message = "خطا در ثبت پرداخت";
-        if (
-          typeof err === "object" &&
-          err !== null &&
-          "isAxiosError" in err &&
-          typeof (err as { isAxiosError: Function }).isAxiosError === "function"
-        ) {
-          const axiosErr = err as {
-            response?: { data?: { message?: string } };
-          };
-          if (axiosErr.response?.data?.message) {
-            message = axiosErr.response.data.message;
-          }
-        }
-        setError(message);
+        setError(getApiErrorMessage(err, "خطا در ثبت پرداخت"));
         return false;
       } finally {
         setSubmitting(false);
@@ -81,21 +68,7 @@ export function usePayment(): UsePaymentResult {
         await installmentApi.deletePayment(installmentId, installmentNumber);
         return true;
       } catch (err: unknown) {
-        let message = "خطا در لغو پرداخت";
-        if (
-          typeof err === "object" &&
-          err !== null &&
-          "isAxiosError" in err &&
-          typeof (err as { isAxiosError: Function }).isAxiosError === "function"
-        ) {
-          const axiosErr = err as {
-            response?: { data?: { message?: string } };
-          };
-          if (axiosErr.response?.data?.message) {
-            message = axiosErr.response.data.message;
-          }
-        }
-        setError(message);
+        setError(getApiErrorMessage(err, "خطا در لغو پرداخت"));
         return false;
       } finally {
         setSubmitting(false);

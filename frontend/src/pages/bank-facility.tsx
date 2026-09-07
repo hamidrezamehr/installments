@@ -21,6 +21,7 @@ import {
 } from "../types/installment";
 import * as installmentApi from "../services/installment-api";
 import { formatWithCommas, formatCardNumber, cardDigits } from "../lib/currency";
+import { getApiErrorMessage } from "../lib/api-errors";
 import ConfirmDialog from "../components/confirm-dialog";
 import JalaliDatePicker from "../components/jalali-date-picker";
 import CustomSelect from "../components/custom-select";
@@ -225,37 +226,7 @@ export default function BankFacilityForm() {
       setSuccess(true);
       setTimeout(() => navigate("/installments/list"), 2000);
     } catch (err: unknown) {
-      let message = "خطا در ثبت اطلاعات";
-      if (
-        typeof err === "object" &&
-        err !== null &&
-        "isAxiosError" in err &&
-        typeof (err as { isAxiosError: Function }).isAxiosError === "function"
-      ) {
-        const axiosErr = err as {
-          response?: {
-            data?: {
-              message?: string;
-              detail?: string;
-              errors?: Record<string, string[]>;
-            };
-            statusText?: string;
-          };
-        };
-        const data = axiosErr.response?.data;
-        if (data?.message) {
-          message = data.message;
-          if (data.detail) message += ` (${data.detail})`;
-        } else if (data?.errors) {
-          const validationErrors = Object.values(data.errors).flat();
-          message = validationErrors.join("\n");
-        } else if (axiosErr.response?.statusText) {
-          message = `${axiosErr.response.statusText}`;
-        }
-      } else if (err instanceof Error) {
-        message = err.message;
-      }
-      setError(message);
+      setError(getApiErrorMessage(err, "خطا در ثبت اطلاعات"));
       setConfirmOpen(false);
     } finally {
       setLoading(false);

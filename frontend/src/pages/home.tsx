@@ -14,13 +14,13 @@ import {
   TrendingUp,
   ChevronLeft,
 } from "lucide-react";
-import { getInstallments } from "../api/installments";
+import { getInstallments } from "../services/installment-api";
 import type { InstallmentRecord } from "../types/installment";
 import { formatCurrency } from "../lib/currency";
-import { formatJalaliDate } from "../lib/jalali";
+import { formatJalaliDate, getTodayJalali } from "../lib/jalali";
 import { buildSchedule } from "../lib/schedule";
 import { useAuth } from "../context/use-auth";
-import { getTodayJalali } from "../lib/jalali";
+import { getApiErrorMessage } from "../lib/api-errors"
 
 export default function Home() {
   const navigate = useNavigate();
@@ -37,22 +37,7 @@ export default function Home() {
         if (!cancelled) setRecords(data);
       } catch (err: unknown) {
         if (cancelled) return;
-        let msg = "خطا در دریافت اطلاعات";
-        if (
-          typeof err === "object" &&
-          err !== null &&
-          "isAxiosError" in err &&
-          typeof (err as { isAxiosError: Function }).isAxiosError === "function"
-        ) {
-          const axiosErr = err as {
-            response?: { data?: { message?: string }; statusText?: string };
-          };
-          msg =
-            axiosErr.response?.data?.message ||
-            axiosErr.response?.statusText ||
-            msg;
-        }
-        setError(msg);
+        setError(getApiErrorMessage(err, "خطا در دریافت اطلاعات"));
       } finally {
         if (!cancelled) setLoading(false);
       }

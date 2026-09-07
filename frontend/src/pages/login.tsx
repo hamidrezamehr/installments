@@ -1,29 +1,19 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import axios from "axios";
 
-import api from "../api";
+import api from "../lib/api";
 import { useAuth } from "../context/use-auth";
+import { getApiErrorMessage } from "../lib/api-errors";
 
 interface LoginForm {
   email: string;
   password: string;
 }
 
-interface User {
-  id: number;
-  name: string;
-  email: string;
-}
-
 interface LoginResponse {
   message: string;
-  user: User;
+  user: { id: number; name: string; email: string };
   token: string;
-}
-
-interface ValidationErrors {
-  [key: string]: string[];
 }
 
 function Login() {
@@ -58,18 +48,7 @@ function Login() {
       navigate("/");
       setForm({ email: "", password: "" });
     } catch (error: unknown) {
-      console.error(error);
-      if (axios.isAxiosError(error)) {
-        if (error.response?.status === 422) {
-          const errors = error.response.data.errors as ValidationErrors;
-          const messages = Object.values(errors).flat();
-          setError(messages.join("\n"));
-        } else {
-          setError(error.response?.data?.message || "ورود ناموفق بود");
-        }
-      } else {
-        setError("مشکلی پیش آمده است");
-      }
+      setError(getApiErrorMessage(error, "ورود ناموفق بود"));
     } finally {
       setLoading(false);
     }

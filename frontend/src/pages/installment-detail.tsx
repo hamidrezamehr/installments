@@ -21,6 +21,7 @@ import { formatJalaliDate } from "../lib/jalali";
 import { buildSchedule } from "../lib/schedule";
 import * as installmentApi from "../services/installment-api";
 import { useToast } from "../components/toast";
+import { getApiErrorMessage } from "../lib/api-errors";
 import ConfirmDialog from "../components/confirm-dialog";
 import PaymentSchedule from "../components/features/installments/payment-schedule";
 import { InstallmentDetailSkeleton } from "../components/ui/skeleton";
@@ -72,27 +73,7 @@ export default function InstallmentDetail() {
       await installmentApi.deleteInstallment(record.id);
       navigate("/installments/list");
     } catch (err: unknown) {
-      let message = "خطا در حذف قسط";
-      if (
-        typeof err === "object" &&
-        err !== null &&
-        "isAxiosError" in err &&
-        typeof (err as { isAxiosError: Function }).isAxiosError === "function"
-      ) {
-        const axiosErr = err as {
-          response?: { data?: { message?: string; detail?: string }; statusText?: string };
-        };
-        const respData = axiosErr.response?.data;
-        if (respData?.message) {
-          message = respData.message;
-          if (respData.detail) message += ` (${respData.detail})`;
-        } else if (axiosErr.response?.statusText) {
-          message = `${axiosErr.response.statusText}`;
-        }
-      } else if (err instanceof Error) {
-        message = err.message;
-      }
-      toast("error", message);
+      toast("error", getApiErrorMessage(err, "خطا در حذف قسط"));
     } finally {
       setDeleting(false);
     }
