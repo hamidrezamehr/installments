@@ -1,14 +1,12 @@
 import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
-  BarChart3,
-  FolderKanban,
-  Users,
-  Settings,
+  CreditCard,
+  ListChecks,
+  User,
   LogOut,
   Zap,
   X,
-  CreditCard,
 } from "lucide-react";
 import { useAuth } from "../context/use-auth";
 
@@ -17,21 +15,14 @@ const navSections = [
     label: "منوی اصلی",
     items: [
       { to: "/", icon: LayoutDashboard, label: "داشبورد", end: true },
-      { to: "/dashboard/analytics", icon: BarChart3, label: "آمار و تحلیل" },
-      { to: "/dashboard/projects", icon: FolderKanban, label: "پروژه‌ها" },
+      { to: "/profile", icon: User, label: "پروفایل" },
     ],
   },
   {
     label: "اقساط",
     items: [
-      { to: "/installments", icon: CreditCard, label: "ثبت اقساط" },
-    ],
-  },
-  {
-    label: "مدیریت",
-    items: [
-      { to: "/dashboard/team", icon: Users, label: "تیم" },
-      { to: "/dashboard/settings", icon: Settings, label: "تنظیمات" },
+      { to: "/installments", icon: CreditCard, label: "ثبت اقساط", end: true },
+      { to: "/installments/list", icon: ListChecks, label: "لیست اقساط" },
     ],
   },
 ];
@@ -68,7 +59,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               <Zap className="h-4.5 w-4.5 text-white" />
             </div>
             <span className="text-[15px] font-bold tracking-tight text-gray-900">
-              داشبورد
+              اقساط من
             </span>
           </div>
           <button

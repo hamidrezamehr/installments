@@ -42,12 +42,26 @@ export interface BankFacility {
   updated_at?: string;
 }
 
+/** Individual payment record (only for actually paid installments) */
+export interface InstallmentPayment {
+  id: number;
+  installment_id: number;
+  installment_number: number;
+  paid_at: string;
+  payment_method?: string;
+  payment_date?: string;
+  note?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 /** Generic installment record wrapper */
 export interface InstallmentRecord {
-  id?: number;
+  id: number;
   category: PaymentCategory;
   title: string;
   data: BankFacility;
+  payments?: InstallmentPayment[];
   created_at?: string;
   updated_at?: string;
 }

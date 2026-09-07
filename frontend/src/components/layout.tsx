@@ -1,14 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { Outlet, Link } from "react-router-dom";
 import Sidebar from "./sidebar";
+import { ErrorBoundary } from "./ui/error-boundary";
 import {
   Menu,
   Bell,
-  Search,
   ChevronDown,
   User,
   LogOut,
-  Settings,
 } from "lucide-react";
 import { useAuth } from "../context/use-auth";
 
@@ -49,16 +48,10 @@ const Layout = () => {
       {/* Main content area */}
       <div className="flex flex-1 flex-col min-h-0 min-w-0">
         {/* ── Desktop Header ── */}
-        <header className="sticky top-0 z-30 bg-white hidden h-16 shrink-0 items-center justify-between border-b border-black/10 px-6 lg:flex">
-          {/* Right side: search */}
-          <div className="relative w-80">
-            <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="جستجو..."
-              dir="rtl"
-              className="w-full rounded-xl border border-black/20 bg-white/40 py-2 pr-10 pl-4 text-sm text-gray-700 shadow-inner shadow-black/2 placeholder:text-gray-400 outline-none transition-all duration-200 focus:border-indigo-400/50 focus:bg-white/60 focus:ring-2 focus:ring-indigo-500/15"
-            />
+        <header className="z-30 bg-white hidden h-16 shrink-0 items-center justify-between border-b border-black/10 px-6 lg:flex">
+          {/* Right side: brand */}
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-bold text-gray-800">اقساط من</span>
           </div>
 
           {/* Left side: actions + profile */}
@@ -89,7 +82,9 @@ const Layout = () => {
                   {userInitial}
                 </div>
                 <ChevronDown
-                  className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${profileOpen ? "rotate-180" : ""}`}
+                  className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
+                    profileOpen ? "rotate-180" : ""
+                  }`}
                 />
               </button>
 
@@ -131,15 +126,6 @@ const Layout = () => {
                   پروفایل
                 </Link>
 
-                <Link
-                  to="/dashboard/settings"
-                  onClick={() => setProfileOpen(false)}
-                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-indigo-50/60 hover:text-indigo-600"
-                >
-                  <Settings className="h-4 w-4" />
-                  تنظیمات
-                </Link>
-
                 <div className="mx-3 my-1 h-px bg-linear-to-l from-transparent via-gray-200 to-transparent" />
 
                 {/* Logout */}
@@ -157,7 +143,7 @@ const Layout = () => {
 
         {/* ── Mobile Header ── */}
         <header
-          className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b border-black/10 px-4 lg:hidden"
+          className="z-30 flex h-14 shrink-0 items-center justify-between border-b border-black/10 px-4 lg:hidden"
           style={{
             background: "rgba(255, 255, 255, 0.55)",
             backdropFilter: "blur(16px) saturate(180%)",
@@ -175,7 +161,7 @@ const Layout = () => {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-indigo-500 to-violet-600 text-2xs font-bold text-white shadow-md shadow-indigo-500/20">
               ک
             </div>
-            <span className="text-sm font-bold text-gray-800">داشبورد</span>
+            <span className="text-sm font-bold text-gray-800">اقساط من</span>
           </div>
 
           <button className="relative flex h-10 w-10 items-center justify-center rounded-xl text-gray-400 transition-all duration-200 hover:bg-white/50 hover:text-gray-600 active:scale-95">
@@ -184,10 +170,12 @@ const Layout = () => {
           </button>
         </header>
 
-        {/* ── Page Content ── */}
-        <main className="flex-1 overflow-y-auto min-h-0 p-2 sm:p-3 lg:p-4">
-          <div className="rounded-xl border border-black/10 bg-white/30 shadow-sm backdrop-blur-sm min-h-full p-4 sm:p-5 lg:p-6">
-            <Outlet />
+        {/* ── Page Content with ErrorBoundary ── */}
+        <main className="flex-1 min-h-0 p-0 lg:p-4">
+          <div className="rounded-xl max-h-[50vh] space-y-2 overflow-y-auto md:border overflow-hidden md:overflow-y-auto border-black/10 bg-white/30 shadow-sm backdrop-blur-sm min-h-full p-4 sm:p-5 lg:p-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-transparent">
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
           </div>
         </main>
       </div>

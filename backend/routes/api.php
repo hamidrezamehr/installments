@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\InstallmentController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register'])
@@ -18,4 +19,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
     Route::post('/verify-email/resend', [AuthController::class, 'resendVerificationEmail'])
         ->middleware('throttle:3,1');
+
+    // Installments
+    Route::get('/installments', [InstallmentController::class, 'index']);
+    Route::post('/installments/bank-facility', [InstallmentController::class, 'storeBankFacility']);
+    Route::get('/installments/{id}', [InstallmentController::class, 'show']);
+    Route::put('/installments/{id}', [InstallmentController::class, 'update']);
+    Route::delete('/installments/{id}', [InstallmentController::class, 'destroy']);
+
+    // Payment management
+    Route::post('/installments/{id}/payments', [InstallmentController::class, 'storePayment']);
+    Route::delete('/installments/{id}/payments/{paymentNumber}', [InstallmentController::class, 'deletePayment']);
 });

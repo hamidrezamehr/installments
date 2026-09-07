@@ -5,6 +5,8 @@ import Register from "./pages/register";
 import Login from "./pages/login";
 import Profile from "./pages/profile";
 import Installments from "./pages/installments";
+import InstallmentList from "./pages/installment-list";
+import InstallmentDetail from "./pages/installment-detail";
 import BankFacilityForm from "./pages/bank-facility";
 
 import GuestRoute from "./components/guest-route";
@@ -26,7 +28,10 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/installments" element={<Installments />} />
+          <Route path="/installments/list" element={<InstallmentList />} />
           <Route path="/installments/new/bank-facility" element={<BankFacilityForm />} />
+          <Route path="/installments/edit/:id" element={<BankFacilityForm />} />
+          <Route path="/installments/:id" element={<InstallmentDetail />} />
           <Route path="*" element={<Home />} />
         </Route>
       </Route>
