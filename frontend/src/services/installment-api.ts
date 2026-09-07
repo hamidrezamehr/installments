@@ -1,27 +1,45 @@
 import api from "../lib/api";
 import type { InstallmentRecord, InstallmentPayment } from "../types/installment";
 
+/**
+ * Laravel Resource collection response shape:
+ * { data: T[], links: {...}, meta: {...} }
+ */
+interface ResourceCollectionResponse<T> {
+  data: T[];
+  links?: unknown;
+  meta?: unknown;
+}
+
+/**
+ * Laravel single Resource response shape:
+ * { data: T }
+ */
+interface ResourceResponse<T> {
+  data: T;
+}
+
 /** Get all installments for the current user */
 export async function getInstallments(): Promise<InstallmentRecord[]> {
-  const response = await api.get<InstallmentRecord[]>("/installments");
-  return response.data;
+  const response = await api.get<ResourceCollectionResponse<InstallmentRecord>>("/installments");
+  return response.data.data;
 }
 
 /** Get a single installment by ID (includes payments array) */
 export async function getInstallment(id: number): Promise<InstallmentRecord> {
-  const response = await api.get<InstallmentRecord>(`/installments/${id}`);
-  return response.data;
+  const response = await api.get<ResourceResponse<InstallmentRecord>>(`/installments/${id}`);
+  return response.data.data;
 }
 
 /** Create a new bank facility installment */
 export async function createInstallment(
   data: InstallmentRecord["data"],
 ): Promise<InstallmentRecord> {
-  const response = await api.post<InstallmentRecord>(
+  const response = await api.post<ResourceResponse<InstallmentRecord>>(
     "/installments/bank-facility",
     data,
   );
-  return response.data;
+  return response.data.data;
 }
 
 /** Update an existing installment */
@@ -29,11 +47,11 @@ export async function updateInstallment(
   id: number,
   data: InstallmentRecord["data"],
 ): Promise<InstallmentRecord> {
-  const response = await api.put<InstallmentRecord>(
+  const response = await api.put<ResourceResponse<InstallmentRecord>>(
     `/installments/${id}`,
     data,
   );
-  return response.data;
+  return response.data.data;
 }
 
 /** Delete an installment */
