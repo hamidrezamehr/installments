@@ -34,6 +34,7 @@ import {
 } from "../api/installments";
 import { PAYMENT_METHOD_LABELS } from "../types/installment";
 import ConfirmDialog from "../components/confirm-dialog";
+import { useToast } from "../components/toast";
 import JalaliDatePicker from "../components/jalali-date-picker";
 import CustomSelect from "../components/custom-select";
 import type { CustomSelectOption } from "../components/custom-select";
@@ -147,6 +148,8 @@ export default function InstallmentDetail() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
 
+  const { notify, renderToast } = useToast();
+
   const [record, setRecord] = useState<InstallmentRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -207,14 +210,12 @@ export default function InstallmentDetail() {
       if (!recordId || submittingPayment) return;
 
       if (!paymentMethod) {
-        setError("لطفاً شیوه پرداخت را انتخاب کنید");
-        setTimeout(() => setError(""), 3000);
+        notify("لطفاً شیوه پرداخت را انتخاب کنید", "error");
         return;
       }
 
       if (!paymentDate) {
-        setError("لطفاً تاریخ پرداخت را وارد کنید");
-        setTimeout(() => setError(""), 3000);
+        notify("لطفاً تاریخ پرداخت را وارد کنید", "error");
         return;
       }
 
@@ -239,6 +240,7 @@ export default function InstallmentDetail() {
         setPaymentMethod("");
         setPaymentDate("");
         setPaymentNote("");
+        notify("پرداخت با موفقیت ثبت شد", "success");
       } catch (err: unknown) {
         let message = "خطا در ثبت پرداخت";
         if (axios.isAxiosError(err)) {
@@ -247,13 +249,12 @@ export default function InstallmentDetail() {
             message = respData.message;
           }
         }
-        setError(message);
-        setTimeout(() => setError(""), 3000);
+        notify(message, "error");
       } finally {
         setSubmittingPayment(false);
       }
     },
-    [recordId, paymentMethod, paymentDate, paymentNote, submittingPayment],
+    [recordId, paymentMethod, paymentDate, paymentNote, submittingPayment, notify],
   );
 
   // Delete payment via API (unpay)
@@ -275,6 +276,7 @@ export default function InstallmentDetail() {
         if (expandedAccordion === installmentNumber) {
           setExpandedAccordion(null);
         }
+        notify("پرداخت با موفقیت لغو شد", "success");
       } catch (err: unknown) {
         let message = "خطا در لغو پرداخت";
         if (axios.isAxiosError(err)) {
@@ -283,14 +285,13 @@ export default function InstallmentDetail() {
             message = respData.message;
           }
         }
-        setError(message);
-        setTimeout(() => setError(""), 3000);
+        notify(message, "error");
       } finally {
         setUnpaying(null);
         setUnpayConfirmOpen(null);
       }
     },
-    [recordId, expandedAccordion, unpaying],
+    [recordId, expandedAccordion, unpaying, notify],
   );
 
   // Load installment + payments from API
@@ -344,11 +345,13 @@ export default function InstallmentDetail() {
   }, [id]);
 
   async function handleDeleteConfirm() {
-    if (!record?.id) return;
+    if (!recordId) return;
     setDeleting(true);
     try {
-      await deleteInstallment(record.id);
-      navigate("/installments/list");
+      await deleteInstallment(recordId);
+      navigate("/installments/list", {
+        state: { toast: "قسط با موفقیت حذف شد" },
+      });
     } catch (err: unknown) {
       let message = "خطا در حذف قسط";
       if (axios.isAxiosError(err)) {
@@ -362,7 +365,7 @@ export default function InstallmentDetail() {
       } else if (err instanceof Error) {
         message = err.message;
       }
-      setError(message);
+      notify(message, "error");
     } finally {
       setDeleting(false);
     }
@@ -875,6 +878,8 @@ export default function InstallmentDetail() {
           </span>
         )}
       </div>
+
+      {renderToast()}
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog

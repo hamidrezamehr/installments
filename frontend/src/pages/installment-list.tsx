@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
   Plus,
@@ -15,6 +15,7 @@ import { toJalaali } from "jalaali-js";
 import type { InstallmentRecord } from "../types/installment";
 import { getInstallments, deleteInstallment } from "../api/installments";
 import ConfirmDialog from "../components/confirm-dialog";
+import { useToast } from "../components/toast";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("fa-IR").format(amount) + " ریال";
@@ -34,9 +35,22 @@ function formatJalaliDate(dateStr: string): string {
 
 export default function InstallmentList() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [records, setRecords] = useState<InstallmentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const { notify, renderToast } = useToast();
+
+  // Show a success toast passed from the create/edit form via navigation state.
+  useEffect(() => {
+    const state = location.state as { toast?: string } | null;
+    if (state?.toast) {
+      notify(state.toast, "success");
+      // Clear the state so a refresh doesn't re-show the toast.
+      window.history.replaceState({}, "");
+    }
+  }, [location.state, notify]);
 
   // Delete dialog state
   const [deleteTarget, setDeleteTarget] = useState<InstallmentRecord | null>(
@@ -99,6 +113,7 @@ export default function InstallmentList() {
       await deleteInstallment(deleteTarget.id);
       setRecords((prev) => prev.filter((r) => r.id !== deleteTarget.id));
       setDeleteTarget(null);
+      notify("قسط با موفقیت حذف شد", "success");
     } catch (err: unknown) {
       let message = "خطا در حذف قسط";
       if (axios.isAxiosError(err)) {
@@ -113,6 +128,7 @@ export default function InstallmentList() {
         message = err.message;
       }
       setError(message);
+      notify(message, "error");
     } finally {
       setDeleting(false);
     }
@@ -230,6 +246,8 @@ export default function InstallmentList() {
           ))}
         </div>
       )}
+
+      {renderToast()}
 
       {/* Delete Confirmation */}
       <ConfirmDialog

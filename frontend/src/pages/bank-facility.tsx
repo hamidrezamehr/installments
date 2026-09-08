@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
+import { toJalaali, toGregorian, jalaaliMonthLength } from "jalaali-js";
 import {
   ArrowRight,
   Plus,
@@ -26,6 +27,7 @@ import {
   updateBankFacility,
 } from "../api/installments";
 import ConfirmDialog from "../components/confirm-dialog";
+import { useToast } from "../components/toast";
 import JalaliDatePicker from "../components/jalali-date-picker";
 import CustomSelect from "../components/custom-select";
 import type { CustomSelectOption } from "../components/custom-select";
@@ -47,6 +49,36 @@ function formatCardNumber(raw: string): string {
 /** Strip dashes and non-digits from card value */
 function cardDigits(raw: string): string {
   return raw.replace(/[^0-9]/g, "").slice(0, 16);
+}
+
+/* ── End-date calculation ──────────────────────────────────── */
+
+/**
+ * Calculate the facility end date as the last installment's due date.
+ * Installments are monthly (project convention), so the end date is the
+ * start date plus (total_installments - 1) Jalali months, clamped to the
+ * target month's max day (handles 29/30/31-day months and leap years).
+ *
+ * Returns a Gregorian YYYY-MM-DD string, or "" when inputs are invalid.
+ */
+function calculateEndDate(
+  startDate: string,
+  totalInstallments: number,
+): string {
+  if (!startDate || !totalInstallments || totalInstallments < 1) return "";
+
+  const d = new Date(startDate + "T00:00:00");
+  if (isNaN(d.getTime())) return "";
+
+  const { jy, jm, jd } = toJalaali(d);
+  const monthsToAdd = totalInstallments - 1;
+  const totalMonths = jy * 12 + (jm - 1) + monthsToAdd;
+  const endJy = Math.floor(totalMonths / 12);
+  const endJm = (totalMonths % 12) + 1;
+  const endJd = Math.min(jd, jalaaliMonthLength(endJy, endJm));
+
+  const g = toGregorian(endJy, endJm, endJd);
+  return `${String(g.gy).padStart(4, "0")}-${String(g.gm).padStart(2, "0")}-${String(g.gd).padStart(2, "0")}`;
 }
 
 /* ── Constants ─────────────────────────────────────────────── */
@@ -116,17 +148,24 @@ export default function BankFacilityForm() {
   const [form, setForm] = useState<BankFacility>(EMPTY_FORM);
   const [loading, setLoading] = useState(false);
   const [fetchingRecord, setFetchingRecord] = useState(() => isEdit);
-  const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+
+  // When true, the user edited the end date manually, so automatic
+  // recalculation must not overwrite it.
+  const [endDateManuallyEdited, setEndDateManuallyEdited] =
+    useState(false);
 
   // Confirmation dialog
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const { notify, renderToast } = useToast();
 
   // Display-only formatted values for currency inputs
   const [loanDisplay, setLoanDisplay] = useState("");
   const [installmentDisplay, setInstallmentDisplay] = useState("");
 
-  // Fetch existing record in edit mode
+  // Fetch existing record in edit mode.
+  // The stored end_date is authoritative and must not be overwritten.
   useEffect(() => {
     if (!id) return;
     getInstallment(Number(id))
@@ -135,6 +174,17 @@ export default function BankFacilityForm() {
         setForm(d);
         setLoanDisplay(formatWithCommas(d.total_loan_amount));
         setInstallmentDisplay(formatWithCommas(d.installment_amount));
+        // The stored end_date is authoritative: only allow auto-recalc when
+        // it already matches the calculated value (i.e. it was never
+        // customized by the user).
+        setEndDateManuallyEdited(
+          Boolean(
+            d.start_date &&
+              d.total_installments &&
+              d.end_date !==
+                calculateEndDate(d.start_date, d.total_installments),
+          ),
+        );
       })
       .catch(() => setError("خطا در بارگذاری اطلاعات"))
       .finally(() => setFetchingRecord(false));
@@ -145,6 +195,24 @@ export default function BankFacilityForm() {
     value: BankFacility[K],
   ) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  /**
+   * Start-date change: also recalculate the end date unless the user has
+   * manually customized it.
+   */
+  const handleStartDateChange = (gregorianDate: string) => {
+    setForm((prev) => {
+      const next = { ...prev, start_date: gregorianDate };
+      if (!endDateManuallyEdited) {
+        const calculated = calculateEndDate(
+          gregorianDate,
+          prev.total_installments,
+        );
+        if (calculated) next.end_date = calculated;
+      }
+      return next;
+    });
   };
 
   const addPaymentMethod = () => {
@@ -219,7 +287,16 @@ export default function BankFacilityForm() {
       updateField("total_installments", 0);
       return;
     }
-    updateField("total_installments", Number(cleaned));
+    const count = Number(cleaned);
+    setForm((prev) => {
+      const next = { ...prev, total_installments: count };
+      // Recalculate end date from the new count unless manually edited.
+      if (!endDateManuallyEdited && prev.start_date) {
+        const calculated = calculateEndDate(prev.start_date, count);
+        if (calculated) next.end_date = calculated;
+      }
+      return next;
+    });
   }
 
   function handleCardNumberChange(
@@ -257,8 +334,15 @@ export default function BankFacilityForm() {
       } else {
         await createBankFacility(form);
       }
-      setSuccess(true);
-      setTimeout(() => navigate("/installments/list"), 2000);
+      // Navigate immediately on success — no artificial delay. The list
+      // page shows the success toast from navigation state.
+      navigate("/installments/list", {
+        state: {
+          toast: isEdit
+            ? "تغییرات با موفقیت ذخیره شد"
+            : "تسهیلات با موفقیت ثبت شد",
+        },
+      });
     } catch (err: unknown) {
       let message = "خطا در ثبت اطلاعات";
       if (axios.isAxiosError(err)) {
@@ -278,6 +362,7 @@ export default function BankFacilityForm() {
         message = err.message;
       }
       setError(message);
+      notify(message, "error");
       setConfirmOpen(false);
     } finally {
       setLoading(false);
@@ -288,22 +373,6 @@ export default function BankFacilityForm() {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
-      </div>
-    );
-  }
-
-  if (success) {
-    return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center">
-        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-          <CheckCircle2 className="h-8 w-8 text-emerald-600" />
-        </div>
-        <h2 className="mb-2 text-xl font-bold text-gray-900">
-          اطلاعات با موفقیت {isEdit ? "ویرایش" : "ثبت"} شد
-        </h2>
-        <p className="text-sm text-gray-500">
-          در حال انتقال به صفحه لیست اقساط...
-        </p>
       </div>
     );
   }
@@ -441,7 +510,7 @@ export default function BankFacilityForm() {
               </label>
               <JalaliDatePicker
                 value={form.start_date}
-                onChange={(g) => updateField("start_date", g)}
+                onChange={handleStartDateChange}
                 required
               />
             </div>
@@ -452,7 +521,11 @@ export default function BankFacilityForm() {
               </label>
               <JalaliDatePicker
                 value={form.end_date}
-                onChange={(g) => updateField("end_date", g)}
+                onChange={(g) => {
+                  // Manual edit — stop auto-overwriting from now on.
+                  setEndDateManuallyEdited(true);
+                  updateField("end_date", g);
+                }}
                 required
               />
             </div>
@@ -592,6 +665,8 @@ export default function BankFacilityForm() {
           </button>
         </div>
       </form>
+
+      {renderToast()}
 
       {/* Save Confirmation Dialog */}
       <ConfirmDialog
