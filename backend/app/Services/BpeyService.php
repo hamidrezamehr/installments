@@ -38,8 +38,12 @@ class BpeyService
             ]);
 
         if ($response->failed()) {
+            // Include the status and a truncated body for diagnostics, but
+            // never leak the raw body into user-facing exceptions.
+            $body = mb_substr($response->body(), 0, 300);
+
             throw new RuntimeException(
-                'Bpey API request failed: ' . $response->status() . ' - ' . $response->body()
+                "Bpey API request failed [{$response->status()}]: {$body}",
             );
         }
 
