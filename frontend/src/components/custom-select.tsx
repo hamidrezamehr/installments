@@ -11,7 +11,6 @@ interface CustomSelectProps {
   options: CustomSelectOption[];
   placeholder?: string;
   onChange: (value: string) => void;
-  required?: boolean;
   className?: string;
   /** Show the red invalid border (parent-driven validation state). */
   invalid?: boolean;
@@ -22,7 +21,6 @@ export default function CustomSelect({
   options,
   placeholder = "انتخاب کنید...",
   onChange,
-  required,
   className = "",
   invalid = false,
 }: CustomSelectProps) {
@@ -30,6 +28,10 @@ export default function CustomSelect({
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
+
+  // Defensive: never map over a non-array (prevents a blank page when an
+  // option list is missing or malformed).
+  const safeOptions = Array.isArray(options) ? options : [];
 
   // Close on outside click
   useEffect(() => {
@@ -56,7 +58,7 @@ export default function CustomSelect({
     return () => document.removeEventListener("keydown", handleKey);
   }, [open]);
 
-  const selected = options.find((o) => o.value === value);
+  const selected = safeOptions.find((o) => o.value === value);
   const displayText = selected ? selected.label : placeholder;
 
   return (
@@ -92,7 +94,7 @@ export default function CustomSelect({
           role="listbox"
           className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-black/10 bg-white py-1 shadow-lg shadow-black/5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-transparent"
         >
-          {options.map((opt) => (
+          {safeOptions.map((opt) => (
             <div
               key={opt.value}
               role="option"
@@ -111,25 +113,6 @@ export default function CustomSelect({
             </div>
           ))}
         </div>
-      )}
-
-      {/* Hidden native select for form validation */}
-      {required && (
-        <select
-          tabIndex={-1}
-          aria-hidden="true"
-          value={value}
-          onChange={() => {}}
-          required={required}
-          className="pointer-events-none absolute -left-[9999px] h-0 w-0 opacity-0"
-        >
-          <option value="">placeholder</option>
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
       )}
     </div>
   );

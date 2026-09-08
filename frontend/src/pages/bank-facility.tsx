@@ -156,7 +156,7 @@ export default function BankFacilityForm() {
     useState(false);
 
   // Per-field validation errors, keyed by form field name. The message
-  // uses the field's visible label, e.g. "تاریخ شروع تسهیلات must not be empty."
+  // uses the field's visible Persian label, e.g. «مقدار تاریخ شروع تسهیلات نباید خالی باشد.»
   const [fieldErrors, setFieldErrors] = useState<Partial<
     Record<keyof BankFacility, string>
   >>({});
@@ -176,19 +176,38 @@ export default function BankFacilityForm() {
     if (!id) return;
     getInstallment(Number(id))
       .then((record) => {
-        const d = record.data || EMPTY_FORM;
-        setForm(d);
-        setLoanDisplay(formatWithCommas(d.total_loan_amount));
-        setInstallmentDisplay(formatWithCommas(d.installment_amount));
+        // Normalize the fetched record: older records may miss fields (e.g.
+        // payment_methods or amounts). Filling gaps here guarantees the form
+        // never renders undefined values that would crash the page.
+        const d: Partial<BankFacility> = record.data ?? {};
+        const normalized: BankFacility = {
+          ...EMPTY_FORM,
+          ...d,
+          total_installments: Number(d.total_installments) || 0,
+          total_loan_amount: Number(d.total_loan_amount) || 0,
+          installment_amount: Number(d.installment_amount) || 0,
+          start_date: d.start_date || "",
+          end_date: d.end_date || "",
+          payment_methods:
+            Array.isArray(d.payment_methods) && d.payment_methods.length > 0
+              ? d.payment_methods
+              : EMPTY_FORM.payment_methods,
+        };
+        setForm(normalized);
+        setLoanDisplay(formatWithCommas(normalized.total_loan_amount));
+        setInstallmentDisplay(formatWithCommas(normalized.installment_amount));
         // The stored end_date is authoritative: only allow auto-recalc when
         // it already matches the calculated value (i.e. it was never
         // customized by the user).
         setEndDateManuallyEdited(
           Boolean(
-            d.start_date &&
-              d.total_installments &&
-              d.end_date !==
-                calculateEndDate(d.start_date, d.total_installments),
+            normalized.start_date &&
+              normalized.total_installments &&
+              normalized.end_date !==
+                calculateEndDate(
+                  normalized.start_date,
+                  normalized.total_installments,
+                ),
           ),
         );
       })
@@ -229,6 +248,7 @@ export default function BankFacilityForm() {
     if (key === "payment_methods") {
       const methods = value as PaymentMethod[];
       invalid =
+        !Array.isArray(methods) ||
         methods.length === 0 ||
         methods.some((m) => !m.type || !m.value.trim());
     } else if (typeof value === "string") {
@@ -236,7 +256,7 @@ export default function BankFacilityForm() {
     } else if (typeof value === "number") {
       invalid = value <= 0;
     }
-    return invalid ? `${label} must not be empty.` : "";
+    return invalid ? `مقدار ${label} نباید خالی باشد.` : "";
   }
 
   /** Validate all required fields; returns the error map (empty if valid). */
@@ -455,17 +475,21 @@ export default function BankFacilityForm() {
           if (data.detail) message += ` (${data.detail})`;
         } else if (data?.errors) {
           const validationErrors = data.errors as Record<string, string[]>;
-          // Map backend validation errors to the matching inputs when possible.
+          // Map backend validation errors to the matching inputs, in fully
+          // Persian wording (never surface raw Laravel/English messages).
           const mapped: Partial<Record<keyof BankFacility, string>> = {};
-          for (const [field, messages] of Object.entries(validationErrors)) {
-            if (field in FIELD_LABELS) {
-              mapped[field as keyof BankFacility] = messages.join(" ");
+          for (const field of Object.keys(validationErrors)) {
+            const rootKey = field.replace(/^data\./, "").split(".")[0];
+            const fieldLabel = FIELD_LABELS[rootKey];
+            if (fieldLabel) {
+              mapped[rootKey as keyof BankFacility] =
+                `مقدار ${fieldLabel} نامعتبر است.`;
             }
           }
           if (Object.keys(mapped).length > 0) {
             setFieldErrors(mapped);
           }
-          message = Object.values(validationErrors).flat().join("\n");
+          message = "اطلاعات وارد شده معتبر نیست. لطفاً موارد مشخص‌شده را اصلاح کنید.";
         } else if (err.response?.statusText) {
           message = `${err.response.status} - ${err.response.statusText}`;
         }
@@ -509,7 +533,11 @@ export default function BankFacilityForm() {
         </div>
       </div>
 
-      <form onSubmit={handleFormSubmit} className="space-y-6">
+      {/* noValidate: the custom validation system owns all messaging and
+          styling. Native validation would otherwise focus the visually hidden
+          select inside CustomSelect and scroll the page away (blank screen)
+          before the submit handler ever runs. */}
+      <form onSubmit={handleFormSubmit} noValidate className="space-y-6">
         {/* Loan Info */}
         <div className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm">
           <div className="mb-5 flex items-center gap-2">
@@ -553,7 +581,6 @@ export default function BankFacilityForm() {
                   updateField("bank_name", v);
                   revalidateField("bank_name", v);
                 }}
-                required
                 invalid={Boolean(fieldErrors.bank_name)}
               />
               {fieldErrors.bank_name && (
@@ -667,7 +694,6 @@ export default function BankFacilityForm() {
               <JalaliDatePicker
                 value={form.start_date}
                 onChange={handleStartDateChange}
-                required
                 invalid={Boolean(fieldErrors.start_date)}
               />
               {fieldErrors.start_date && (
@@ -689,7 +715,6 @@ export default function BankFacilityForm() {
                   updateField("end_date", g);
                   revalidateField("end_date", g);
                 }}
-                required
                 invalid={Boolean(fieldErrors.end_date)}
               />
               {fieldErrors.end_date && (

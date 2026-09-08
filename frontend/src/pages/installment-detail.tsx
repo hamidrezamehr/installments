@@ -800,7 +800,6 @@ export default function InstallmentDetail() {
                           options={paymentMethodOptions}
                           placeholder="انتخاب کنید..."
                           onChange={setPaymentMethod}
-                          required
                           className="w-full"
                         />
                       </div>
@@ -812,7 +811,6 @@ export default function InstallmentDetail() {
                         <JalaliDatePicker
                           value={paymentDate}
                           onChange={setPaymentDate}
-                          required
                         />
                       </div>
 
