@@ -176,24 +176,28 @@ export default function InstallmentDetail() {
 
   // Build schedule from installment data + DB payment state
   const data = record?.data;
+  const facilityPaymentMethods = data?.payment_methods;
+  const scheduleStartDate = data?.start_date ?? "";
+  const scheduleTotalInstallments = data?.total_installments ?? 0;
+  const recordId = record?.id;
 
   // Build payment method options from facility's payment_methods
   const paymentMethodOptions: CustomSelectOption[] = useMemo(() => {
-    if (!data?.payment_methods) return [];
-    return data.payment_methods.map((m) => ({
+    if (!facilityPaymentMethods) return [];
+    return facilityPaymentMethods.map((m) => ({
       value: PAYMENT_METHOD_LABELS[m.type] || m.type,
       label: PAYMENT_METHOD_LABELS[m.type] || m.type,
     }));
-  }, [data?.payment_methods]);
+  }, [facilityPaymentMethods]);
 
   const schedule = useMemo(
     () =>
       buildSchedule(
-        data?.start_date ?? "",
-        data?.total_installments ?? 0,
+        scheduleStartDate,
+        scheduleTotalInstallments,
         payments,
       ),
-    [data?.start_date, data?.total_installments, payments],
+    [scheduleStartDate, scheduleTotalInstallments, payments],
   );
 
   // Summary counts (overdue = due AND not paid)
@@ -205,7 +209,7 @@ export default function InstallmentDetail() {
   // Store payment via API (payment method selected from facility's options)
   const handleStorePayment = useCallback(
     async (installmentNumber: number) => {
-      if (!record?.id || submittingPayment) return;
+      if (!recordId || submittingPayment) return;
 
       if (!paymentMethod) {
         setError("لطفاً شیوه پرداخت را انتخاب کنید");
@@ -223,7 +227,7 @@ export default function InstallmentDetail() {
 
       try {
         const result = await storePayment(
-          record.id,
+          recordId,
           installmentNumber,
           paymentMethod,
           paymentDate,
@@ -254,18 +258,18 @@ export default function InstallmentDetail() {
         setSubmittingPayment(false);
       }
     },
-    [record?.id, paymentMethod, paymentDate, paymentNote, submittingPayment],
+    [recordId, paymentMethod, paymentDate, paymentNote, submittingPayment],
   );
 
   // Delete payment via API (unpay)
   const handleDeletePayment = useCallback(
     async (installmentNumber: number) => {
-      if (!record?.id || unpaying !== null) return;
+      if (!recordId || unpaying !== null) return;
 
       setUnpaying(installmentNumber);
 
       try {
-        await deletePayment(record.id, installmentNumber);
+        await deletePayment(recordId, installmentNumber);
 
         // Remove payment from local state
         setPayments((prev) =>
@@ -291,7 +295,7 @@ export default function InstallmentDetail() {
         setUnpayConfirmOpen(null);
       }
     },
-    [record?.id, expandedAccordion, unpaying],
+    [recordId, expandedAccordion, unpaying],
   );
 
   // Load installment + payments from API
