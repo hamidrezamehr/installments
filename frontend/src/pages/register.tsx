@@ -1,14 +1,14 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import axios from "axios";
 
-import api from "../api";
+import api, { extractApiErrorMessage, TOKEN_STORAGE_KEY } from "../api";
 
 interface RegisterForm {
   name: string;
   email: string;
   password: string;
   password_confirmation: string;
+  terms: boolean;
 }
 
 interface RegisterResponse {
@@ -21,10 +21,6 @@ interface RegisterResponse {
   token: string;
 }
 
-interface ValidationErrors {
-  [key: string]: string[];
-}
-
 function Register() {
   const navigate = useNavigate();
 
@@ -33,6 +29,7 @@ function Register() {
     email: "",
     password: "",
     password_confirmation: "",
+    terms: false,
   });
 
   const [message, setMessage] = useState("");
@@ -40,8 +37,11 @@ function Register() {
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -51,28 +51,24 @@ function Register() {
     setLoading(true);
 
     try {
-      const response = await api.post<RegisterResponse>("/register", form);
+      const response = await api.post<RegisterResponse>("/register", {
+        ...form,
+        terms: form.terms ? "on" : "",
+      });
+      // The API auto-issues a token, but the account is not verified yet.
+      // Discard it so the user lands on /login and verifies first.
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
       setMessage(response.data.message);
       setForm({
         name: "",
         email: "",
         password: "",
         password_confirmation: "",
+        terms: false,
       });
       setTimeout(() => navigate("/login"), 2000);
-    } catch (error: unknown) {
-      console.error(error);
-      if (axios.isAxiosError(error)) {
-        if (error.response?.status === 422) {
-          const errors = error.response.data.errors as ValidationErrors;
-          const messages = Object.values(errors).flat();
-          setError(messages.join("\n"));
-        } else {
-          setError(error.response?.data?.message || "مشکلی پیش آمده است");
-        }
-      } else {
-        setError("مشکلی پیش آمده است");
-      }
+    } catch (err: unknown) {
+      setError(extractApiErrorMessage(err, "مشکلی پیش آمده است"));
     } finally {
       setLoading(false);
     }
@@ -239,6 +235,7 @@ function Register() {
                   value={form.password}
                   onChange={handleChange}
                   required
+                  autoComplete="new-password"
                   placeholder="حداقل ۸ کاراکتر"
                   className="block w-full rounded-xl border border-white/60 bg-white/50 py-2.5 pr-10 pl-4 text-sm text-gray-900 shadow-inner shadow-black/2 placeholder:text-gray-400 outline-none transition-all duration-200 focus:border-indigo-400 focus:bg-white/70 focus:ring-2 focus:ring-indigo-500/20 focus:shadow-md focus:shadow-indigo-500/5"
                 />
@@ -277,10 +274,43 @@ function Register() {
                   value={form.password_confirmation}
                   onChange={handleChange}
                   required
+                  autoComplete="new-password"
                   placeholder="رمز عبور را دوباره وارد کنید"
                   className="block w-full rounded-xl border border-white/60 bg-white/50 py-2.5 pr-10 pl-4 text-sm text-gray-900 shadow-inner shadow-black/2 placeholder:text-gray-400 outline-none transition-all duration-200 focus:border-indigo-400 focus:bg-white/70 focus:ring-2 focus:ring-indigo-500/20 focus:shadow-md focus:shadow-indigo-500/5"
                 />
               </div>
+            </div>
+
+            {/* Terms */}
+            <div className="flex items-start gap-2">
+              <input
+                id="terms"
+                name="terms"
+                type="checkbox"
+                checked={form.terms}
+                onChange={handleChange}
+                required
+                className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <label
+                htmlFor="terms"
+                className="text-xs leading-relaxed text-gray-600"
+              >
+                <a
+                  href="#"
+                  className="font-semibold text-indigo-500 hover:text-indigo-600"
+                >
+                  شرایط استفاده
+                </a>{" "}
+                و{" "}
+                <a
+                  href="#"
+                  className="font-semibold text-indigo-500 hover:text-indigo-600"
+                >
+                  سیاست حفظ حریم خصوصی
+                </a>{" "}
+                را می‌پذیرم.
+              </label>
             </div>
 
             {/* Submit */}

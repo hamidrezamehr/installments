@@ -1,8 +1,9 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/use-auth";
 
 function GuestRoute() {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -13,7 +14,10 @@ function GuestRoute() {
   }
 
   if (user) {
-    return <Navigate to="/" replace />;
+    const returnTo =
+      new URLSearchParams(location.search).get("returnTo") ?? "/";
+    const safeReturnTo = returnTo.startsWith("/") ? returnTo : "/";
+    return <Navigate to={safeReturnTo} replace />;
   }
 
   return <Outlet />;

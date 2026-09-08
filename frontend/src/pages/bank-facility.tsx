@@ -19,7 +19,7 @@ import {
   type PaymentMethodType,
   PAYMENT_METHOD_LABELS,
 } from "../types/installment";
-import { createBankFacility } from "../api/installments";
+import { createBankFacility, extractApiErrorMessage } from "../api/installments";
 
 const IRANIAN_BANKS = [
   "بانک ملی ایران",
@@ -110,6 +110,16 @@ export default function BankFacilityForm() {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
+
+    if (
+      form.start_date &&
+      form.end_date &&
+      form.end_date < form.start_date
+    ) {
+      setError("تاریخ پایان نمی‌تواند قبل از تاریخ شروع باشد");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -117,9 +127,7 @@ export default function BankFacilityForm() {
       setSuccess(true);
       setTimeout(() => navigate("/installments"), 2000);
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "خطا در ثبت اطلاعات";
-      setError(message);
+      setError(extractApiErrorMessage(err, "خطا در ثبت اطلاعات"));
     } finally {
       setLoading(false);
     }

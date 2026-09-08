@@ -1,8 +1,10 @@
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/use-auth";
-import { LogOut, User, Mail } from "lucide-react";
+import { LogOut, User, Mail, ArrowRight } from "lucide-react";
 
 function Profile() {
   const { user, loading, logout } = useAuth();
+  const navigate = useNavigate();
 
   const handleLogout = async () => {
     await logout();
@@ -22,6 +24,15 @@ function Profile() {
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
+      {/* Back button */}
+      <button
+        onClick={() => navigate(-1)}
+        className="flex h-9 w-9 items-center justify-center rounded-xl text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+        aria-label="بازگشت"
+      >
+        <ArrowRight className="h-5 w-5" />
+      </button>
+
       {/* Profile Card */}
       <div className="rounded-2xl border border-black/10 bg-white/50 p-6 shadow-sm backdrop-blur-sm sm:p-8">
         {/* Avatar + Name */}

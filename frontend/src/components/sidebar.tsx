@@ -1,10 +1,7 @@
 import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
-  BarChart3,
-  FolderKanban,
   Users,
-  Settings,
   LogOut,
   Zap,
   X,
@@ -17,21 +14,13 @@ const navSections = [
     label: "منوی اصلی",
     items: [
       { to: "/", icon: LayoutDashboard, label: "داشبورد", end: true },
-      { to: "/dashboard/analytics", icon: BarChart3, label: "آمار و تحلیل" },
-      { to: "/dashboard/projects", icon: FolderKanban, label: "پروژه‌ها" },
+      { to: "/profile", icon: Users, label: "پروفایل" },
     ],
   },
   {
     label: "اقساط",
     items: [
       { to: "/installments", icon: CreditCard, label: "ثبت اقساط" },
-    ],
-  },
-  {
-    label: "مدیریت",
-    items: [
-      { to: "/dashboard/team", icon: Users, label: "تیم" },
-      { to: "/dashboard/settings", icon: Settings, label: "تنظیمات" },
     ],
   },
 ];
@@ -93,7 +82,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                   <NavLink
                     key={to}
                     to={to}
-                    end={end}
+                    end={end ?? false}
                     onClick={onClose}
                     className={({ isActive }) =>
                       `group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${

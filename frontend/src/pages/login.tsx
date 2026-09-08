@@ -1,8 +1,7 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import axios from "axios";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 
-import api from "../api";
+import api, { extractApiErrorMessage, TOKEN_STORAGE_KEY } from "../api";
 import { useAuth } from "../context/use-auth";
 
 interface LoginForm {
@@ -22,20 +21,22 @@ interface LoginResponse {
   token: string;
 }
 
-interface ValidationErrors {
-  [key: string]: string[];
-}
-
 function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { refreshUser } = useAuth();
+
+  // Only allow internal paths to prevent open redirects.
+  const returnTo =
+    searchParams.get("returnTo")?.startsWith("/")
+      ? searchParams.get("returnTo")!
+      : "/";
 
   const [form, setForm] = useState<LoginForm>({
     email: "",
     password: "",
   });
 
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -46,30 +47,22 @@ function Login() {
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setMessage("");
     setError("");
     setLoading(true);
 
     try {
+      // Clear any stale token before authenticating so the fresh
+      // token from the response is the only one in storage.
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+
       const response = await api.post<LoginResponse>("/login", form);
       const { token } = response.data;
-      localStorage.setItem("token", token);
+      localStorage.setItem(TOKEN_STORAGE_KEY, token);
       await refreshUser();
-      navigate("/");
+      navigate(returnTo);
       setForm({ email: "", password: "" });
-    } catch (error: unknown) {
-      console.error(error);
-      if (axios.isAxiosError(error)) {
-        if (error.response?.status === 422) {
-          const errors = error.response.data.errors as ValidationErrors;
-          const messages = Object.values(errors).flat();
-          setError(messages.join("\n"));
-        } else {
-          setError(error.response?.data?.message || "ورود ناموفق بود");
-        }
-      } else {
-        setError("مشکلی پیش آمده است");
-      }
+    } catch (err: unknown) {
+      setError(extractApiErrorMessage(err, "ورود ناموفق بود"));
     } finally {
       setLoading(false);
     }
@@ -283,12 +276,6 @@ function Login() {
         </div>
 
         {/* Messages */}
-        {message && (
-          <div className="mt-4 rounded-xl border border-emerald-200/60 bg-emerald-50/70 px-4 py-3 text-center text-sm font-medium text-emerald-700 backdrop-blur-sm">
-            {message}
-          </div>
-        )}
-
         {error && (
           <div
             className="mt-4 rounded-xl border border-red-200/60 bg-red-50/70 px-4 py-3 text-center text-sm font-medium text-red-600 backdrop-blur-sm"
