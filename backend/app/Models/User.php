@@ -37,13 +37,4 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(Installment::class);
     }
-
-    /**
-     * The email address used when generating the verification signature hash.
-     * Overridden so the hash stays valid if the user changes their email later.
-     */
-    public function getEmailForVerification(): string
-    {
-        return $this->email;
-    }
 }
