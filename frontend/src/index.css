@@ -4,11 +4,27 @@
 @source "../node_modules/flowbite";
 @import "flowbite/src/themes/default";
 
+@theme {
+  --font-sans: "Vazirmatn", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+
 html {
   height: 100%;
+  font-family: var(--font-sans);
 }
 
 body {
   height: 100%;
   margin: 0;
+  font-family: var(--font-sans);
+}
+
+/* Numeric input: value is LTR, placeholder is RTL */
+.num-ltr-value {
+  direction: ltr;
+  text-align: left;
+}
+.num-ltr-value::placeholder {
+  direction: rtl;
+  text-align: right;
 }

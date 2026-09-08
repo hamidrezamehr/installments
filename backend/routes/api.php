@@ -17,22 +17,17 @@ Route::get('/verify-email/{id}/{hash}', [AuthController::class, 'verifyEmail'])
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
-
     Route::post('/verify-email/resend', [AuthController::class, 'resendVerificationEmail'])
-        ->middleware('throttle:3,1')
-        ->name('verification.send');
-});
+        ->middleware('throttle:3,1');
 
-Route::get('/email/verify/notice', fn () => response()->json([
-    'message' => 'Your email address is not verified.',
-]))
-    ->middleware('auth:sanctum')
-    ->name('verification.notice');
-
-Route::middleware(['auth:sanctum', 'verified'])->group(function () {
+    // Installments
     Route::get('/installments', [InstallmentController::class, 'index']);
-    Route::post('/installments', [InstallmentController::class, 'store']);
-    Route::get('/installments/{installment}', [InstallmentController::class, 'show']);
-    Route::put('/installments/{installment}', [InstallmentController::class, 'update']);
-    Route::delete('/installments/{installment}', [InstallmentController::class, 'destroy']);
+    Route::post('/installments/bank-facility', [InstallmentController::class, 'storeBankFacility']);
+    Route::get('/installments/{id}', [InstallmentController::class, 'show']);
+    Route::put('/installments/{id}', [InstallmentController::class, 'update']);
+    Route::delete('/installments/{id}', [InstallmentController::class, 'destroy']);
+
+    // Payment management
+    Route::post('/installments/{id}/payments', [InstallmentController::class, 'storePayment']);
+    Route::delete('/installments/{id}/payments/{paymentNumber}', [InstallmentController::class, 'deletePayment']);
 });
