@@ -191,12 +191,7 @@ export default function InstallmentDetail() {
   }, [facilityPaymentMethods]);
 
   const schedule = useMemo(
-    () =>
-      buildSchedule(
-        scheduleStartDate,
-        scheduleTotalInstallments,
-        payments,
-      ),
+    () => buildSchedule(scheduleStartDate, scheduleTotalInstallments, payments),
     [scheduleStartDate, scheduleTotalInstallments, payments],
   );
 
@@ -642,7 +637,7 @@ export default function InstallmentDetail() {
           </div>
 
           {/* Schedule list — scrollable when many installments */}
-          <div className="max-h-[50vh] space-y-2 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-transparent">
+          <div className="max-h-[50vh] space-y-2 overflow-x-hidden overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-transparent">
             {schedule.map((item) => (
               <div key={item.index}>
                 {/* Main installment row */}
