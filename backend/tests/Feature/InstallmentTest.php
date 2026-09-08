@@ -34,8 +34,8 @@ class InstallmentTest extends TestCase
             ->postJson('/api/installments', $this->validPayload());
 
         $response->assertCreated()
-            ->assertJsonPath('data.category', 'bank_facility')
-            ->assertJsonPath('data.data.bank_name', 'بانک ملت');
+            ->assertJsonPath('category', 'bank_facility')
+            ->assertJsonPath('data.bank_name', 'بانک ملت');
 
         $this->assertDatabaseHas('installments', [
             'user_id' => $user->id,
@@ -80,7 +80,7 @@ class InstallmentTest extends TestCase
             ->getJson('/api/installments');
 
         $response->assertOk()
-            ->assertJsonCount(3, 'data');
+            ->assertJsonCount(3);
     }
 
     public function test_user_cannot_view_another_users_installment(): void
@@ -127,7 +127,7 @@ class InstallmentTest extends TestCase
         $this->actingAs($user, 'sanctum')
             ->putJson("/api/installments/{$installment->id}", $payload)
             ->assertOk()
-            ->assertJsonPath('data.title', 'وام به‌روزرسانی شده');
+            ->assertJsonPath('title', 'وام به‌روزرسانی شده');
     }
 
     public function test_user_can_delete_their_own_installment(): void

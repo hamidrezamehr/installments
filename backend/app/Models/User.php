@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\URL;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable implements MustVerifyEmail
@@ -46,20 +45,5 @@ class User extends Authenticatable implements MustVerifyEmail
     public function getEmailForVerification(): string
     {
         return $this->email;
-    }
-
-    /**
-     * Build the signed verification URL for API clients (no web session needed).
-     */
-    public function verificationUrl(): string
-    {
-        return URL::temporarySignedRoute(
-            'verification.verify',
-            now()->addDays(3),
-            [
-                'id' => $this->getKey(),
-                'hash' => sha1($this->getEmailForVerification()),
-            ],
-        );
     }
 }
