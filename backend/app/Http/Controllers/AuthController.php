@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use Illuminate\Auth\Events\Registered;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Laravel\Sanctum\PersonalAccessToken;
+use Laravel\Sanctum\TransientToken;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -26,8 +30,10 @@ class AuthController extends Controller
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
+            'password' => $validated['password'],
         ]);
+
+        Registered::dispatch($user);
 
         $token = $user->createToken('auth-token')->plainTextToken;
 
@@ -50,7 +56,7 @@ class AuthController extends Controller
     {
         $user = User::findOrFail($id);
 
-        if (! hash_equals((string) $user->getEmailVerificationToken(), (string) $hash)) {
+        if (! hash_equals(sha1((string) $user->getEmailForVerification()), (string) $hash)) {
             return response()->json(['message' => 'Invalid verification link.'], 403);
         }
 
@@ -59,6 +65,8 @@ class AuthController extends Controller
         }
 
         $user->markEmailAsVerified();
+
+        Verified::dispatch($user);
 
         return response()->json(['message' => 'Email verified successfully.']);
     }
@@ -69,11 +77,19 @@ class AuthController extends Controller
      */
     public function resendVerificationEmail(Request $request): JsonResponse
     {
-        if ($request->user()->hasVerifiedEmail()) {
+        $user = $request->user();
+
+        if ($user->hasVerifiedEmail()) {
             return response()->json(['message' => 'Email already verified.']);
         }
 
-        $request->user()->sendEmailVerificationNotification();
+        if ($user->currentAccessToken() instanceof TransientToken) {
+            return response()->json([
+                'message' => 'Verification emails can only be resent with an API token.',
+            ], 403);
+        }
+
+        $user->sendEmailVerificationNotification();
 
         return response()->json(['message' => 'Verification email sent.']);
     }
@@ -117,7 +133,11 @@ class AuthController extends Controller
      */
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
+        $accessToken = $request->user()->currentAccessToken();
+
+        if ($accessToken instanceof PersonalAccessToken) {
+            $accessToken->delete();
+        }
 
         return response()->json([
             'message' => 'Logout successful',
