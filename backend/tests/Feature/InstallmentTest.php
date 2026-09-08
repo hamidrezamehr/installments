@@ -80,7 +80,8 @@ class InstallmentTest extends TestCase
             ->getJson('/api/installments');
 
         $response->assertOk()
-            ->assertJsonCount(3);
+            ->assertJsonCount(3, 'data')
+            ->assertJsonStructure(['data', 'links', 'meta']);
     }
 
     public function test_user_cannot_view_another_users_installment(): void

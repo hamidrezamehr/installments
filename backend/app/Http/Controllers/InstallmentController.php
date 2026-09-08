@@ -13,14 +13,16 @@ use App\Http\Resources\InstallmentResource;
 class InstallmentController extends Controller
 {
     /**
-     * List the authenticated user's installments.
+     * List the authenticated user's installments (cursor-paginated).
      */
     public function index(Request $request): AnonymousResourceCollection
     {
+        $perPage = min(50, max(1, $request->integer('per_page', 15)));
+
         $installments = $request->user()
             ->installments()
             ->latest()
-            ->get();
+            ->cursorPaginate($perPage);
 
         return InstallmentResource::collection($installments);
     }

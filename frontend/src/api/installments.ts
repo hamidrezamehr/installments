@@ -13,10 +13,17 @@ export async function createBankFacility(
   return response.data;
 }
 
-/** Get all installments for the current user */
+/** Paginated response envelope from the backend cursor paginator */
+interface PaginatedInstallments {
+  data: InstallmentRecord[];
+  links: { next: string | null };
+  meta: { next_cursor: string | null };
+}
+
+/** Get installments for the current user (first page) */
 export async function getInstallments(): Promise<InstallmentRecord[]> {
-  const response = await api.get<InstallmentRecord[]>("/installments");
-  return response.data;
+  const response = await api.get<PaginatedInstallments>("/installments");
+  return response.data.data;
 }
 
 /** Get a single installment by ID */
