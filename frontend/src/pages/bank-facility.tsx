@@ -155,6 +155,12 @@ export default function BankFacilityForm() {
   const [endDateManuallyEdited, setEndDateManuallyEdited] =
     useState(false);
 
+  // Per-field validation errors, keyed by form field name. The message
+  // uses the field's visible label, e.g. "تاریخ شروع تسهیلات must not be empty."
+  const [fieldErrors, setFieldErrors] = useState<Partial<
+    Record<keyof BankFacility, string>
+  >>({});
+
   // Confirmation dialog
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -197,6 +203,82 @@ export default function BankFacilityForm() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  /* ── Validation ────────────────────────────────────────────── */
+
+  /** Required-field labels, matching the visible form labels. */
+  const FIELD_LABELS: Record<string, string> = {
+    title: "عنوان تسهیلات",
+    bank_name: "نام بانک",
+    total_loan_amount: "مبلغ کل وام",
+    installment_amount: "مبلغ هر قسط",
+    total_installments: "تعداد اقساط",
+    start_date: "تاریخ شروع تسهیلات",
+    end_date: "تاریخ پایان تسهیلات",
+    payment_methods: "شیوه پرداخت",
+  };
+
+  /** Validate one field against a concrete value; returns an error message or "". */
+  function validateFieldValue(
+    key: keyof BankFacility,
+    value: BankFacility[keyof BankFacility],
+  ): string {
+    const label = FIELD_LABELS[key];
+    if (!label) return "";
+
+    let invalid = false;
+    if (key === "payment_methods") {
+      const methods = value as PaymentMethod[];
+      invalid =
+        methods.length === 0 ||
+        methods.some((m) => !m.type || !m.value.trim());
+    } else if (typeof value === "string") {
+      invalid = value.trim() === "";
+    } else if (typeof value === "number") {
+      invalid = value <= 0;
+    }
+    return invalid ? `${label} must not be empty.` : "";
+  }
+
+  /** Validate all required fields; returns the error map (empty if valid). */
+  function validateAllFields(
+    formToValidate: BankFacility,
+  ): Partial<Record<keyof BankFacility, string>> {
+    const requiredKeys: (keyof BankFacility)[] = [
+      "title",
+      "bank_name",
+      "total_loan_amount",
+      "installment_amount",
+      "total_installments",
+      "start_date",
+      "end_date",
+      "payment_methods",
+    ];
+    const errors: Partial<Record<keyof BankFacility, string>> = {};
+    for (const key of requiredKeys) {
+      const msg = validateFieldValue(key, formToValidate[key]);
+      if (msg) errors[key] = msg;
+    }
+    return errors;
+  }
+
+  /**
+   * Re-validate one field on change using the NEW value (not the stale
+   * closure form); clears the error as soon as the field becomes valid.
+   */
+  const revalidateField = (
+    key: keyof BankFacility,
+    value: BankFacility[keyof BankFacility],
+  ) => {
+    setFieldErrors((prev) => {
+      if (!(key in prev)) return prev;
+      const msg = validateFieldValue(key, value);
+      if (msg) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
   /**
    * Start-date change: also recalculate the end date unless the user has
    * manually customized it.
@@ -213,6 +295,7 @@ export default function BankFacilityForm() {
       }
       return next;
     });
+    revalidateField("start_date", gregorianDate);
   };
 
   const addPaymentMethod = () => {
@@ -241,7 +324,13 @@ export default function BankFacilityForm() {
       updated[index].label = PAYMENT_METHOD_LABELS[value as PaymentMethodType];
     }
     updateField("payment_methods", updated);
+    revalidateField("payment_methods", updated);
   };
+
+  function handleTitleChange(v: string) {
+    updateField("title", v);
+    revalidateField("title", v);
+  }
 
   /* ── Formatted input handlers ─────────────────────────────── */
 
@@ -256,6 +345,7 @@ export default function BankFacilityForm() {
     const num = Number(digits);
     setLoanDisplay(formatWithCommas(num));
     updateField("total_loan_amount", num);
+    revalidateField("total_loan_amount", num);
   }
 
   function handleInstallmentAmountChange(
@@ -271,6 +361,7 @@ export default function BankFacilityForm() {
     const num = Number(digits);
     setInstallmentDisplay(formatWithCommas(num));
     updateField("installment_amount", num);
+    revalidateField("installment_amount", num);
   }
 
   function handleInstallmentCountChange(
@@ -279,12 +370,14 @@ export default function BankFacilityForm() {
     const raw = e.target.value;
     if (raw === "") {
       updateField("total_installments", 0);
+      revalidateField("total_installments", 0);
       return;
     }
     // Strip leading zeros and non-digits
     const cleaned = raw.replace(/^0+/, "").replace(/[^0-9]/g, "");
     if (cleaned === "") {
       updateField("total_installments", 0);
+      revalidateField("total_installments", 0);
       return;
     }
     const count = Number(cleaned);
@@ -297,6 +390,7 @@ export default function BankFacilityForm() {
       }
       return next;
     });
+    revalidateField("total_installments", count);
   }
 
   function handleCardNumberChange(
@@ -317,9 +411,18 @@ export default function BankFacilityForm() {
 
   /* ── Submit ───────────────────────────────────────────────── */
 
-  // Called when user clicks submit button — opens confirm dialog
+  // Called when user clicks submit button — validates required fields
+  // first, then opens the confirm dialog only if the form is valid.
   function handleFormSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    const errors = validateAllFields(form);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      // Don't open the confirm dialog when the form is invalid.
+      return;
+    }
+
     setConfirmOpen(true);
   }
 
@@ -351,10 +454,18 @@ export default function BankFacilityForm() {
           message = data.message;
           if (data.detail) message += ` (${data.detail})`;
         } else if (data?.errors) {
-          const validationErrors = Object.values(
-            data.errors as Record<string, string[]>,
-          ).flat();
-          message = validationErrors.join("\n");
+          const validationErrors = data.errors as Record<string, string[]>;
+          // Map backend validation errors to the matching inputs when possible.
+          const mapped: Partial<Record<keyof BankFacility, string>> = {};
+          for (const [field, messages] of Object.entries(validationErrors)) {
+            if (field in FIELD_LABELS) {
+              mapped[field as keyof BankFacility] = messages.join(" ");
+            }
+          }
+          if (Object.keys(mapped).length > 0) {
+            setFieldErrors(mapped);
+          }
+          message = Object.values(validationErrors).flat().join("\n");
         } else if (err.response?.statusText) {
           message = `${err.response.status} - ${err.response.statusText}`;
         }
@@ -414,11 +525,20 @@ export default function BankFacilityForm() {
               <input
                 type="text"
                 value={form.title}
-                onChange={(e) => updateField("title", e.target.value)}
+                onChange={(e) => handleTitleChange(e.target.value)}
                 required
                 placeholder="مثال: وام مسکن بانک ملت"
-                className="w-full rounded-xl border border-black/10 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
+                className={`w-full rounded-xl border bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:bg-white focus:ring-2 ${
+                  fieldErrors.title
+                    ? "border-red-400 focus:border-red-400 focus:ring-red-500/20"
+                    : "border-black/10 focus:border-indigo-400 focus:ring-indigo-500/20"
+                }`}
               />
+              {fieldErrors.title && (
+                <p className="mt-1.5 text-xs font-medium text-red-600">
+                  {fieldErrors.title}
+                </p>
+              )}
             </div>
 
             <div className="sm:col-span-2">
@@ -429,9 +549,18 @@ export default function BankFacilityForm() {
                 value={form.bank_name}
                 options={BANK_OPTIONS}
                 placeholder="انتخاب کنید..."
-                onChange={(v) => updateField("bank_name", v)}
+                onChange={(v) => {
+                  updateField("bank_name", v);
+                  revalidateField("bank_name", v);
+                }}
                 required
+                invalid={Boolean(fieldErrors.bank_name)}
               />
+              {fieldErrors.bank_name && (
+                <p className="mt-1.5 text-xs font-medium text-red-600">
+                  {fieldErrors.bank_name}
+                </p>
+              )}
             </div>
 
             <div>
@@ -447,9 +576,18 @@ export default function BankFacilityForm() {
                   onChange={handleLoanAmountChange}
                   required
                   placeholder="مثال: 500,000,000"
-                  className="w-full rounded-xl border border-black/10 bg-gray-50 py-2.5 pr-10 pl-4 text-sm text-gray-900 outline-none transition-all focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
+                  className={`w-full rounded-xl border bg-gray-50 py-2.5 pr-10 pl-4 text-sm text-gray-900 outline-none transition-all focus:bg-white focus:ring-2 ${
+                    fieldErrors.total_loan_amount
+                      ? "border-red-400 focus:border-red-400 focus:ring-red-500/20"
+                      : "border-black/10 focus:border-indigo-400 focus:ring-indigo-500/20"
+                  }`}
                 />
               </div>
+              {fieldErrors.total_loan_amount && (
+                <p className="mt-1.5 text-xs font-medium text-red-600">
+                  {fieldErrors.total_loan_amount}
+                </p>
+              )}
             </div>
 
             <div>
@@ -465,9 +603,18 @@ export default function BankFacilityForm() {
                   onChange={handleInstallmentAmountChange}
                   required
                   placeholder="مثال: 45,000,000"
-                  className="w-full rounded-xl border border-black/10 bg-gray-50 py-2.5 pr-10 pl-4 text-sm text-gray-900 outline-none transition-all focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
+                  className={`w-full rounded-xl border bg-gray-50 py-2.5 pr-10 pl-4 text-sm text-gray-900 outline-none transition-all focus:bg-white focus:ring-2 ${
+                    fieldErrors.installment_amount
+                      ? "border-red-400 focus:border-red-400 focus:ring-red-500/20"
+                      : "border-black/10 focus:border-indigo-400 focus:ring-indigo-500/20"
+                  }`}
                 />
               </div>
+              {fieldErrors.installment_amount && (
+                <p className="mt-1.5 text-xs font-medium text-red-600">
+                  {fieldErrors.installment_amount}
+                </p>
+              )}
             </div>
 
             <div>
@@ -485,9 +632,18 @@ export default function BankFacilityForm() {
                   min={1}
                   max={360}
                   placeholder="12"
-                  className="w-full rounded-xl border border-black/10 bg-gray-50 py-2.5 pr-10 pl-4 text-sm text-gray-900 outline-none transition-all focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
+                  className={`w-full rounded-xl border bg-gray-50 py-2.5 pr-10 pl-4 text-sm text-gray-900 outline-none transition-all focus:bg-white focus:ring-2 ${
+                    fieldErrors.total_installments
+                      ? "border-red-400 focus:border-red-400 focus:ring-red-500/20"
+                      : "border-black/10 focus:border-indigo-400 focus:ring-indigo-500/20"
+                  }`}
                 />
               </div>
+              {fieldErrors.total_installments && (
+                <p className="mt-1.5 text-xs font-medium text-red-600">
+                  {fieldErrors.total_installments}
+                </p>
+              )}
             </div>
 
             <div />
@@ -512,7 +668,13 @@ export default function BankFacilityForm() {
                 value={form.start_date}
                 onChange={handleStartDateChange}
                 required
+                invalid={Boolean(fieldErrors.start_date)}
               />
+              {fieldErrors.start_date && (
+                <p className="mt-1.5 text-xs font-medium text-red-600">
+                  {fieldErrors.start_date}
+                </p>
+              )}
             </div>
 
             <div>
@@ -525,9 +687,16 @@ export default function BankFacilityForm() {
                   // Manual edit — stop auto-overwriting from now on.
                   setEndDateManuallyEdited(true);
                   updateField("end_date", g);
+                  revalidateField("end_date", g);
                 }}
                 required
+                invalid={Boolean(fieldErrors.end_date)}
               />
+              {fieldErrors.end_date && (
+                <p className="mt-1.5 text-xs font-medium text-red-600">
+                  {fieldErrors.end_date}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -565,6 +734,10 @@ export default function BankFacilityForm() {
                       options={PAYMENT_TYPE_OPTIONS}
                       placeholder="انتخاب کنید..."
                       onChange={(v) => updatePaymentMethod(index, "type", v)}
+                      invalid={
+                        Boolean(fieldErrors.payment_methods) &&
+                        !method.type
+                      }
                     />
                   </div>
 
@@ -598,7 +771,12 @@ export default function BankFacilityForm() {
                             ? "شماره حساب"
                             : "شماره تسهیلات"
                       }
-                      className={`w-full rounded-lg border border-black/10 bg-white px-4 py-2.5 text-base font-medium text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20${method.type !== "card_transfer" ? " num-ltr-value" : ""}`}
+                      className={`w-full rounded-lg border bg-white px-4 py-2.5 text-base font-medium text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:ring-2 ${
+                        Boolean(fieldErrors.payment_methods) &&
+                        !method.value.trim()
+                          ? "border-red-400 focus:border-red-400 focus:ring-red-500/20"
+                          : "border-black/10 focus:border-indigo-400 focus:ring-indigo-500/20"
+                      }${method.type !== "card_transfer" ? " num-ltr-value" : ""}`}
                     />
                   </div>
                 </div>
@@ -614,6 +792,11 @@ export default function BankFacilityForm() {
                 )}
               </div>
             ))}
+            {fieldErrors.payment_methods && (
+              <p className="text-xs font-medium text-red-600">
+                {fieldErrors.payment_methods}
+              </p>
+            )}
           </div>
         </div>
 

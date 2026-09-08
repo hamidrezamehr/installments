@@ -13,6 +13,8 @@ interface CustomSelectProps {
   onChange: (value: string) => void;
   required?: boolean;
   className?: string;
+  /** Show the red invalid border (parent-driven validation state). */
+  invalid?: boolean;
 }
 
 export default function CustomSelect({
@@ -22,6 +24,7 @@ export default function CustomSelect({
   onChange,
   required,
   className = "",
+  invalid = false,
 }: CustomSelectProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -66,9 +69,11 @@ export default function CustomSelect({
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
         className={`flex w-full items-center justify-between gap-2 rounded-lg border bg-white px-4 py-2.5 text-base font-medium outline-none transition-all ${
-          open
-            ? "border-indigo-400 ring-2 ring-indigo-500/20 shadow-md shadow-indigo-500/10"
-            : "border-black/10 hover:border-black/20"
+          invalid
+            ? "border-red-400 ring-2 ring-red-500/20"
+            : open
+              ? "border-indigo-400 ring-2 ring-indigo-500/20 shadow-md shadow-indigo-500/10"
+              : "border-black/10 hover:border-black/20"
         } ${selected ? "text-gray-900" : "text-gray-400"}`}
       >
         <span className="truncate text-right">{displayText}</span>

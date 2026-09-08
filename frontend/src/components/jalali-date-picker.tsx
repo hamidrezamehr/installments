@@ -51,6 +51,8 @@ interface JalaliDatePickerProps {
   value: string; // Gregorian YYYY-MM-DD or ""
   onChange: (gregorianDate: string) => void;
   required?: boolean;
+  /** Show the red invalid border on all three selects (parent-driven validation state). */
+  invalid?: boolean;
 }
 
 interface PartialDate {
@@ -65,6 +67,7 @@ export default function JalaliDatePicker({
   value,
   onChange,
   required,
+  invalid = false,
 }: JalaliDatePickerProps) {
   // Derive Jalali from parent's value prop (Edit mode)
   const jalali = useMemo(() => toJalaliFromISO(value), [value]);
@@ -172,6 +175,7 @@ export default function JalaliDatePicker({
         placeholder="روز"
         onChange={handleDayChange}
         required={required}
+        invalid={invalid}
         className="w-20 shrink-0"
       />
 
@@ -182,6 +186,7 @@ export default function JalaliDatePicker({
         placeholder="ماه"
         onChange={handleMonthChange}
         required={required}
+        invalid={invalid}
         className="min-w-0 flex-1"
       />
 
@@ -192,6 +197,7 @@ export default function JalaliDatePicker({
         placeholder="سال"
         onChange={handleYearChange}
         required={required}
+        invalid={invalid}
         className="w-24 shrink-0"
       />
     </div>
