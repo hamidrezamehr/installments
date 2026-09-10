@@ -18,8 +18,7 @@ import {
   CheckCircle2,
   CircleDot,
   Circle,
-  ChevronDown,
-  ChevronUp,
+  Eye,
 } from "lucide-react";
 import { toJalaali, toGregorian, jalaaliMonthLength } from "jalaali-js";
 import type {
@@ -34,6 +33,7 @@ import {
 } from "../api/installments";
 import { PAYMENT_METHOD_LABELS } from "../types/installment";
 import ConfirmDialog from "../components/confirm-dialog";
+import Dialog from "../components/dialog";
 import { useToast } from "../components/toast";
 import JalaliDatePicker from "../components/jalali-date-picker";
 import CustomSelect from "../components/custom-select";
@@ -162,16 +162,16 @@ export default function InstallmentDetail() {
   const [payments, setPayments] = useState<InstallmentPayment[]>([]);
 
   // Payment form state
-  const [paymentFormOpen, setPaymentFormOpen] = useState<number | null>(null); // installment_number or null
+  const [paymentFormInstallment, setPaymentFormInstallment] = useState<
+    number | null
+  >(null); // installment_number or null
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentDate, setPaymentDate] = useState("");
   const [paymentNote, setPaymentNote] = useState("");
   const [submittingPayment, setSubmittingPayment] = useState(false);
 
-  // Accordion state: expanded installment number or null
-  const [expandedAccordion, setExpandedAccordion] = useState<number | null>(
-    null,
-  );
+  // Payment details dialog: the schedule item being viewed, or null when closed
+  const [viewingItem, setViewingItem] = useState<ScheduleItem | null>(null);
 
   // Unpay confirmation dialog
   const [unpayConfirmOpen, setUnpayConfirmOpen] = useState<number | null>(null);
@@ -236,7 +236,7 @@ export default function InstallmentDetail() {
         }
 
         // Close form and reset
-        setPaymentFormOpen(null);
+        setPaymentFormInstallment(null);
         setPaymentMethod("");
         setPaymentDate("");
         setPaymentNote("");
@@ -254,7 +254,7 @@ export default function InstallmentDetail() {
         setSubmittingPayment(false);
       }
     },
-    [recordId, paymentMethod, paymentDate, paymentNote, submittingPayment, notify],
+    [recordId, paymentMethod, paymentDate, paymentNote, submittingPayment, notify, setPaymentFormInstallment],
   );
 
   // Delete payment via API (unpay)
@@ -272,10 +272,6 @@ export default function InstallmentDetail() {
           prev.filter((p) => p.installment_number !== installmentNumber),
         );
 
-        // Close accordion if it was open
-        if (expandedAccordion === installmentNumber) {
-          setExpandedAccordion(null);
-        }
         notify("پرداخت با موفقیت لغو شد", "success");
       } catch (err: unknown) {
         let message = "خطا در لغو پرداخت";
@@ -291,7 +287,7 @@ export default function InstallmentDetail() {
         setUnpayConfirmOpen(null);
       }
     },
-    [recordId, expandedAccordion, unpaying, notify],
+    [recordId, unpaying, notify],
   );
 
   // Load installment + payments from API
@@ -653,7 +649,7 @@ export default function InstallmentDetail() {
                         : "border-black/5 bg-gray-50/50"
                   }`}
                 >
-                  {/* Checkbox — shows payment form for unpaid, or toggle unpay for paid */}
+                  {/* Checkbox — opens payment form dialog for unpaid, or unpay confirmation for paid */}
                   {item.paid ? (
                     <button
                       type="button"
@@ -672,7 +668,7 @@ export default function InstallmentDetail() {
                     <button
                       type="button"
                       onClick={() => {
-                        setPaymentFormOpen(item.index);
+                        setPaymentFormInstallment(item.index);
                         // Pre-select first payment method if only one exists
                         setPaymentMethod(
                           paymentMethodOptions.length === 1
@@ -682,7 +678,7 @@ export default function InstallmentDetail() {
                         setPaymentDate(getTodayISO()); // Default to today
                         setPaymentNote("");
                       }}
-                      disabled={paymentFormOpen !== null}
+                      disabled={paymentFormInstallment !== null}
                       className="shrink-0 focus:outline-none disabled:opacity-50"
                       aria-label={`پرداخت قسط ${item.index}`}
                     >
@@ -694,8 +690,13 @@ export default function InstallmentDetail() {
                     </button>
                   )}
 
-                  {/* Installment info */}
-                  <div className="flex flex-1 items-center justify-between gap-2">
+                  {/* Installment info — clicking a paid row opens the payment details dialog */}
+                  <button
+                    type="button"
+                    disabled={!item.paid || !item.payment}
+                    onClick={() => setViewingItem(item)}
+                    className="flex flex-1 cursor-pointer items-center justify-between gap-2 text-right focus:outline-none disabled:cursor-default"
+                  >
                     <span className="text-sm font-bold text-gray-900">
                       قسط {item.index}
                     </span>
@@ -718,143 +719,13 @@ export default function InstallmentDetail() {
                             ? "سررسید شده"
                             : "آینده"}
                       </span>
-                      {/* Accordion toggle for paid installments */}
                       {item.paid && item.payment && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setExpandedAccordion(
-                              expandedAccordion === item.index
-                                ? null
-                                : item.index,
-                            )
-                          }
-                          className="flex h-5 w-5 items-center justify-center text-gray-400 hover:text-gray-600"
-                        >
-                          {expandedAccordion === item.index ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          )}
-                        </button>
+                        <Eye className="h-4 w-4 shrink-0 text-emerald-500" />
                       )}
                     </div>
-                  </div>
+                  </button>
                 </div>
 
-                {/* Accordion for paid installments */}
-                {item.paid &&
-                  item.payment &&
-                  expandedAccordion === item.index && (
-                    <div className="ml-8 w-full mt-1 rounded-xl border border-emerald-200/40 bg-emerald-50/30 p-4 transition-all">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-3.5 w-3.5 text-emerald-500" />
-                          <span className="text-xs font-semibold text-gray-500">
-                            تاریخ پرداخت:
-                          </span>
-                          <span className="text-xs font-bold text-gray-900">
-                            {item.payment.payment_date
-                              ? formatJalaliDate(item.payment.payment_date)
-                              : "—"}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CreditCard className="h-3.5 w-3.5 text-emerald-500" />
-                          <span className="text-xs font-semibold text-gray-500">
-                            نحوه پرداخت:
-                          </span>
-                          <span className="text-xs font-bold text-gray-900">
-                            {item.payment.payment_method || "—"}
-                          </span>
-                        </div>
-                        {item.payment.note && (
-                          <div className="flex items-start gap-2">
-                            <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                            <span className="text-xs font-semibold text-gray-500">
-                              یادداشت:
-                            </span>
-                            <span className="text-xs text-gray-700">
-                              {item.payment.note}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                {/* Payment form for unpaid installments — dropdown from facility's payment methods */}
-                {paymentFormOpen === item.index && (
-                  <div className="mt-1 rounded-xl border border-amber-200/40 bg-amber-50/30 p-4 transition-all">
-                    <h4 className="mb-3 text-xs font-bold text-gray-700">
-                      ثبت پرداخت قسط {item.index}
-                    </h4>
-                    <div className="space-y-3">
-                      {/* Payment Method — dropdown from facility's payment methods */}
-                      <div>
-                        <label className="mb-1 block text-[11px] font-semibold text-gray-500">
-                          شیوه پرداخت *
-                        </label>
-                        <CustomSelect
-                          value={paymentMethod}
-                          options={paymentMethodOptions}
-                          placeholder="انتخاب کنید..."
-                          onChange={setPaymentMethod}
-                          className="w-full"
-                        />
-                      </div>
-                      {/* Payment Date — defaults to today */}
-                      <div>
-                        <label className="mb-1 block text-[11px] font-semibold text-gray-500">
-                          تاریخ پرداخت *
-                        </label>
-                        <JalaliDatePicker
-                          value={paymentDate}
-                          onChange={setPaymentDate}
-                        />
-                      </div>
-
-                      {/* Note */}
-                      <div>
-                        <label className="mb-1 block text-[11px] font-semibold text-gray-500">
-                          یادداشت
-                        </label>
-                        <input
-                          type="text"
-                          value={paymentNote}
-                          onChange={(e) => setPaymentNote(e.target.value)}
-                          placeholder="اختیاری..."
-                          className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-xs text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
-                        />
-                      </div>
-
-                      {/* Action buttons */}
-                      <div className="flex items-center gap-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => handleStorePayment(item.index)}
-                          disabled={submittingPayment}
-                          className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-emerald-600 disabled:opacity-50"
-                        >
-                          {submittingPayment ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                          )}
-                          ثبت پرداخت
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPaymentFormOpen(null)}
-                          disabled={submittingPayment}
-                          className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-all hover:bg-gray-50 disabled:opacity-50"
-                        >
-                          انصراف
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -906,6 +777,136 @@ export default function InstallmentDetail() {
         }
         onCancel={() => setUnpayConfirmOpen(null)}
       />
+
+      {/* Payment Details Dialog — shown when clicking a paid installment */}
+      <Dialog
+        open={viewingItem !== null}
+        onClose={() => setViewingItem(null)}
+        title={`جزئیات پرداخت — قسط ${viewingItem?.index ?? ""}`}
+        subtitle={record.title}
+        icon={
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-500">
+            <CheckCircle2 className="h-5 w-5" />
+          </div>
+        }
+      >
+        {viewingItem?.payment && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 rounded-xl bg-gray-50 px-4 py-3">
+              <Clock className="h-4 w-4 shrink-0 text-emerald-500" />
+              <span className="text-xs font-semibold text-gray-500">
+                تاریخ پرداخت:
+              </span>
+              <span className="mr-auto text-xs font-bold text-gray-900">
+                {viewingItem.payment.payment_date
+                  ? formatJalaliDate(viewingItem.payment.payment_date)
+                  : "—"}
+              </span>
+            </div>
+            <div className="flex items-center gap-3 rounded-xl bg-gray-50 px-4 py-3">
+              <CreditCard className="h-4 w-4 shrink-0 text-emerald-500" />
+              <span className="text-xs font-semibold text-gray-500">
+                نحوه پرداخت:
+              </span>
+              <span className="mr-auto text-xs font-bold text-gray-900">
+                {viewingItem.payment.payment_method || "—"}
+              </span>
+            </div>
+            {viewingItem.payment.note && (
+              <div className="flex items-start gap-3 rounded-xl bg-gray-50 px-4 py-3">
+                <StickyNote className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                <span className="text-xs font-semibold text-gray-500">
+                  یادداشت:
+                </span>
+                <span className="mr-auto text-xs leading-relaxed text-gray-700">
+                  {viewingItem.payment.note}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </Dialog>
+
+      {/* Payment Form Dialog — for registering a payment on an unpaid installment */}
+      <Dialog
+        open={paymentFormInstallment !== null}
+        onClose={() => {
+          if (!submittingPayment) setPaymentFormInstallment(null);
+        }}
+        title={`ثبت پرداخت قسط ${paymentFormInstallment ?? ""}`}
+        subtitle={record.title}
+        icon={
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-500">
+            <Banknote className="h-5 w-5" />
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          {/* Payment Method — dropdown from facility's payment methods */}
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-gray-500">
+              شیوه پرداخت *
+            </label>
+            <CustomSelect
+              value={paymentMethod}
+              options={paymentMethodOptions}
+              placeholder="انتخاب کنید..."
+              onChange={setPaymentMethod}
+              className="w-full"
+            />
+          </div>
+
+          {/* Payment Date — defaults to today */}
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-gray-500">
+              تاریخ پرداخت *
+            </label>
+            <JalaliDatePicker value={paymentDate} onChange={setPaymentDate} />
+          </div>
+
+          {/* Note */}
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-gray-500">
+              یادداشت
+            </label>
+            <input
+              type="text"
+              value={paymentNote}
+              onChange={(e) => setPaymentNote(e.target.value)}
+              placeholder="اختیاری..."
+              className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-xs text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
+            />
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() =>
+                paymentFormInstallment !== null &&
+                handleStorePayment(paymentFormInstallment)
+              }
+              disabled={submittingPayment}
+              className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-emerald-600 disabled:opacity-50"
+            >
+              {submittingPayment ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              )}
+              ثبت پرداخت
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaymentFormInstallment(null)}
+              disabled={submittingPayment}
+              className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-all hover:bg-gray-50 disabled:opacity-50"
+            >
+              انصراف
+            </button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }
