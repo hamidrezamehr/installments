@@ -9,6 +9,7 @@ import {
   User,
   LogOut,
   Settings,
+  Plus,
 } from "lucide-react";
 import { useAuth } from "../context/use-auth";
 
@@ -42,14 +43,23 @@ const Layout = () => {
   const userInitial = userName.charAt(0);
 
   return (
-    <div dir="rtl" className="flex h-dvh overflow-hidden lg:h-dvh">
+    <div dir="rtl" className="relative flex h-dvh overflow-hidden lg:h-dvh">
+      {/* ── Page background (soft gradient + floating orbs, matching auth pages) ── */}
+      <div className="absolute inset-0 bg-linear-to-bl from-[#eef2ff] via-[#f3e8ff] to-[#f0fdfa]" />
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-24 -right-24 h-125 w-125 rounded-full bg-blue-400/20 blur-[100px] animate-pulse" />
+        <div className="absolute top-1/3 -left-20 h-100 w-100 rounded-full bg-violet-400/20 blur-[80px] animate-pulse [animation-delay:1s]" />
+        <div className="absolute -bottom-20 right-1/3 h-87.5 w-87.5 rounded-full bg-emerald-400/15 blur-[80px] animate-pulse [animation-delay:2s]" />
+        <div className="absolute top-1/2 left-1/2 h-62.5 w-62.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-pink-300/10 blur-[60px] animate-pulse [animation-delay:3s]" />
+      </div>
+
       {/* Sidebar */}
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main content area */}
-      <div className="flex flex-1 flex-col min-h-0 min-w-0">
+      <div className="relative z-10 flex flex-1 flex-col min-h-0 min-w-0">
         {/* ── Desktop Header ── */}
-        <header className="z-30 bg-white hidden h-16 shrink-0 items-center justify-between border-b border-black/10 px-6 lg:flex">
+        <header className="sticky top-0 z-30 hidden h-16 shrink-0 items-center justify-between border-b border-white/60 bg-white/40 px-6 backdrop-blur-xl backdrop-saturate-150 lg:flex">
           {/* Right side: search */}
           <div className="relative w-80">
             <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -57,26 +67,38 @@ const Layout = () => {
               type="text"
               placeholder="جستجو..."
               dir="rtl"
-              className="w-full rounded-xl border border-black/20 bg-white/40 py-2 pr-10 pl-4 text-sm text-gray-700 shadow-inner shadow-black/2 placeholder:text-gray-400 outline-none transition-all duration-200 focus:border-indigo-400/50 focus:bg-white/60 focus:ring-2 focus:ring-indigo-500/15"
+              className="w-full rounded-xl border border-white/60 bg-white/50 py-2 pr-10 pl-4 text-sm text-gray-700 shadow-inner shadow-black/2 placeholder:text-gray-400 outline-none transition-all duration-200 focus:border-indigo-400/50 focus:bg-white/70 focus:ring-2 focus:ring-indigo-500/20"
             />
           </div>
 
           {/* Left side: actions + profile */}
           <div className="flex items-center gap-2">
+            {/* Primary CTA — register a new installment */}
+            <Link
+              to="/installments/new/bank-facility"
+              className="flex items-center gap-1.5 rounded-xl bg-linear-to-l from-indigo-500 to-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-indigo-500/25 transition-all duration-200 hover:from-indigo-600 hover:to-violet-700 hover:shadow-lg hover:shadow-indigo-500/30 hover:-translate-y-0.5 active:translate-y-0"
+            >
+              <Plus className="h-4 w-4" />
+              ثبت قسط جدید
+            </Link>
+
             {/* Notification bell */}
-            <button className="relative flex h-9 w-9 items-center justify-center rounded-xl text-gray-400 transition-all duration-200 hover:bg-white/50 hover:text-gray-600">
+            <button
+              type="button"
+              className="relative flex h-9 w-9 items-center justify-center rounded-xl text-gray-400 transition-all duration-200 hover:bg-white/60 hover:text-gray-600"
+            >
               <Bell className="h-4.5 w-4.5" />
               <span className="absolute left-1.5 top-1.5 h-2 w-2 rounded-full bg-red-400 shadow-sm shadow-red-400/50" />
             </button>
 
-            <div className="mx-2 h-6 w-px bg-gray-200" />
+            <div className="mx-2 h-6 w-px bg-white/70" />
 
             {/* Profile Dropdown */}
             <div ref={profileRef} className="relative">
               <button
                 onClick={() => setProfileOpen((o) => !o)}
                 className={`flex items-center gap-3 rounded-xl py-1.5 pr-1.5 pl-3 transition-all duration-200 ${
-                  profileOpen ? "bg-indigo-50/60" : "hover:bg-white/40"
+                  profileOpen ? "bg-white/70" : "hover:bg-white/50"
                 }`}
               >
                 <div className="text-left">
@@ -95,7 +117,7 @@ const Layout = () => {
 
               {/* Dropdown menu */}
               <div
-                className={`absolute left-0 top-full mt-2 w-64 origin-top-left rounded-2xl border border-black/10 bg-white/95 p-2 shadow-xl shadow-black/8 backdrop-blur-xl transition-all duration-200 ${
+                className={`absolute left-0 top-full mt-2 w-64 origin-top-left rounded-2xl border border-white/50 bg-white/90 p-2 shadow-xl shadow-black/8 backdrop-blur-xl transition-all duration-200 ${
                   profileOpen
                     ? "scale-100 opacity-100"
                     : "pointer-events-none scale-95 opacity-0"
@@ -157,7 +179,7 @@ const Layout = () => {
 
         {/* ── Mobile Header ── */}
         <header
-          className="z-30 flex h-14 shrink-0 items-center justify-between border-b border-black/10 px-4 lg:hidden"
+          className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b border-white/60 px-4 lg:hidden"
           style={{
             background: "rgba(255, 255, 255, 0.55)",
             backdropFilter: "blur(16px) saturate(180%)",
@@ -166,7 +188,7 @@ const Layout = () => {
         >
           <button
             onClick={() => setSidebarOpen(true)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 active:scale-95"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-gray-500 transition-all duration-200 hover:bg-white/60 hover:text-gray-700 active:scale-95"
           >
             <Menu className="h-5 w-5" />
           </button>
@@ -175,20 +197,21 @@ const Layout = () => {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-indigo-500 to-violet-600 text-2xs font-bold text-white shadow-md shadow-indigo-500/20">
               ک
             </div>
-            <span className="text-sm font-bold text-gray-800">داشبورد</span>
+            <span className="text-sm font-bold text-gray-800">اقساط</span>
           </div>
 
-          <button className="relative flex h-10 w-10 items-center justify-center rounded-xl text-gray-400 transition-all duration-200 hover:bg-white/50 hover:text-gray-600 active:scale-95">
+          <button
+            type="button"
+            className="relative flex h-10 w-10 items-center justify-center rounded-xl text-gray-400 transition-all duration-200 hover:bg-white/60 hover:text-gray-600 active:scale-95"
+          >
             <Bell className="h-4.5 w-4.5" />
             <span className="absolute left-1.5 top-1.5 h-2 w-2 rounded-full bg-red-400 shadow-sm shadow-red-400/50" />
           </button>
         </header>
 
         {/* ── Page Content ── */}
-        <main className="flex-1 min-h-0 p-0 lg:p-4">
-          <div className="rounded-xl max-h-[50vh] space-y-2 overflow-y-auto md:border overflow-hidden md:overflow-y-auto border-black/10 bg-white/30 shadow-sm backdrop-blur-sm min-h-full p-4 sm:p-5 lg:p-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-transparent">
-            <Outlet />
-          </div>
+        <main className="flex-1 overflow-y-auto min-h-0 p-3 sm:p-4 lg:p-4">
+          <Outlet />
         </main>
       </div>
     </div>
